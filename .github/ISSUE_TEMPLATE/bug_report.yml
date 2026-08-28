@@ -1,0 +1,58 @@
+name: 🐛 Reporte de bug
+description: Reportá un problema o comportamiento inesperado en GRmenu
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Gracias por reportar un bug. Completá la mayor cantidad de información posible.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Descripción del problema
+      description: ¿Qué esperabas que pasara y qué pasó en realidad?
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Código para reproducirlo
+      description: Un ejemplo mínimo que dispare el bug.
+      render: python
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Versión de grmenu
+      placeholder: "ej. 0.1.2"
+    validations:
+      required: true
+
+  - type: input
+    id: python-version
+    attributes:
+      label: Versión de Python
+      placeholder: "ej. 3.11"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Sistema operativo
+      options:
+        - Linux
+        - macOS
+        - Otro (especificar en la descripción)
+    validations:
+      required: true
+
+  - type: input
+    id: terminal
+    attributes:
+      label: Terminal / emulador usado
+      placeholder: "ej. GNOME Terminal, iTerm2, Kitty..."

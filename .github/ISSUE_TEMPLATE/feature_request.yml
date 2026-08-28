@@ -1,0 +1,32 @@
+name: ✨ Propuesta de mejora
+description: Sugerí una nueva funcionalidad o mejora para GRmenu
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Gracias por tomarte el tiempo de proponer una mejora.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: ¿Qué problema resuelve?
+      description: Contexto o limitación actual que te lleva a pedir esto.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Solución propuesta
+      description: Cómo te imaginás que funcionaría (API, parámetros, comportamiento).
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternativas consideradas
+      description: ¿Hay alguna forma de lograrlo hoy, aunque sea incómoda?
+    validations:
+      required: false
