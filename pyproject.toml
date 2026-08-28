@@ -1,0 +1,30 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "grmenu"
+version = "0.1.0"
+description = "Menu de navegacion por teclado para terminal en modo TTY crudo (flechas + Enter)"
+readme = "README.md"
+requires-python = ">=3.9"
+license = "MIT"
+authors = [
+    { name = "grcode", email = "gonzalezrosalesjoseeduardo@gmail.com" }
+]
+classifiers = [
+    "Environment :: Console",
+    "Programming Language :: Python :: 3",
+    "Operating System :: POSIX",
+]
+
+[tool.hatch.build.targets.wheel]
+include = ["GRmenu.py"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "GRmenu.py",
+    "README.md",
+    "LICENSE",
+    "pyproject.toml",
+]
