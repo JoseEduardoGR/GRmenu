@@ -19,7 +19,8 @@ Este repositorio agrupa las distintas implementaciones de GRmenu, una por lengua
 | Carpeta | Lenguaje | Estado | Docs |
 |---------|----------|--------|------|
 | [`python/`](python/) | Python | ✅ Publicado en [PyPI](https://pypi.org/project/grmenu/) | [python/README.md](python/README.md) |
-| [`ruby/`](ruby/) | Ruby | Publicado en [RubyGems](https://rubygems.org/gems/grmenu) | [ruby/README.md](ruby/README.md) |
+| [`ruby/`](ruby/) | Ruby | ✅ Publicado en [RubyGems](https://rubygems.org/gems/grmenu) | [ruby/README.md](ruby/README.md) |
+| [`c++/`](c++/) | C++ | 🚧 Header-only, no requiere publicación | [c++/README.md](c++/README.md) |
 
 Cada carpeta es independiente: tiene su propio código, su propio empaquetado y su propio README con instrucciones de instalación y uso.
 
