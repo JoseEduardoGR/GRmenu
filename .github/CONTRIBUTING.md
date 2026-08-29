@@ -9,13 +9,17 @@ Gracias por tu interés en contribuir. Esta guía es corta a propósito porque e
 
 ## Cómo levantar el proyecto
 
+El repo tiene una carpeta por lenguaje. Para la implementación en Python:
+
 ```bash
 git clone https://github.com/JoseEduardoGR/GRmenu.git
-cd GRmenu
+cd GRmenu/python
 pip install -e .
 ```
 
-`GRmenu.py` es el único archivo del paquete — no hay dependencias externas.
+`python/GRmenu.py` es el único archivo del paquete — no hay dependencias externas.
+
+La implementación en Ruby vive en [`ruby/GRmenu.rb`](../ruby/GRmenu.rb).
 
 ## Probar tus cambios
 

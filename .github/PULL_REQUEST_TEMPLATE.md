@@ -13,7 +13,7 @@
 
 - [ ] Probé los cambios manualmente en una terminal real (TTY)
 - [ ] Actualicé el README si el comportamiento público cambió
-- [ ] El código sigue el estilo del resto del archivo (`GRmenu.py`)
+- [ ] El código sigue el estilo del resto del archivo (`python/GRmenu.py` o `ruby/GRmenu.rb`, según corresponda)
 
 <!--
 Nota: al mergear a main, el workflow de release sube automáticamente
