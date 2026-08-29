@@ -1,0 +1,11 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Ruby gems and Bundler
+*.gem
+.bundle/
+vendor/bundle/
+pkg/
+
