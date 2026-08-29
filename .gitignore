@@ -5,7 +5,12 @@ __pycache__/
 
 # Ruby gems and Bundler
 *.gem
+ruby/*.gem
 .bundle/
 vendor/bundle/
 pkg/
 
+# Scratch / test / example files
+e.rb
+ruby/e.rb
+**/e.rb
