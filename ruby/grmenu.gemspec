@@ -16,6 +16,6 @@ Gem::Specification.new do |spec|
   spec.metadata["bug_tracker_uri"] = "https://github.com/JoseEduardoGR/GRmenu/issues"
   spec.metadata["changelog_uri"]   = "https://github.com/JoseEduardoGR/GRmenu/commits/main"
 
-  spec.files         = ["GRmenu.rb", "README.md", "LICENSE"]
+  spec.files         = ["GRmenu.rb", "README.md", "LICENSE", "data/fonts.json"]
   spec.require_paths = ["."]
 end
