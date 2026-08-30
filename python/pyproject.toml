@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "grmenu"
-version = "2.0.1"
+version = "2.0.2"
 description = "Menu de navegacion por teclado para terminal en modo TTY crudo (flechas + Enter)"
 readme = "README.md"
 requires-python = ">=3.9"

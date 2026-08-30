@@ -2,9 +2,9 @@
 
 Gem::Specification.new do |spec|
   spec.name          = "grmenu"
-  spec.version       = "0.1.5"
+  spec.version       = "0.1.6"
   spec.authors       = ["grcode"]
-  spec.email         = ["gonzalezrosalesjoseeduardo@gmail.com"]
+  spec.email         = ["garabatoangelopolis@gmail.com"]
 
   spec.summary       = "Menu de navegacion interactivo para terminal con Banners ASCII 3D, colores y estilos"
   spec.description   = "GRmenu es una gema ligera para crear menus interactivos de navegacion en terminal (Linux/macOS/Windows) usando flechas arriba/abajo y Enter, con soporte para Banners ASCII 3D, paleta de colores y estilos de marco, sin dependencias externas."
@@ -16,6 +16,6 @@ Gem::Specification.new do |spec|
   spec.metadata["bug_tracker_uri"] = "https://github.com/JoseEduardoGR/GRmenu/issues"
   spec.metadata["changelog_uri"]   = "https://github.com/JoseEduardoGR/GRmenu/commits/main"
 
-  spec.files         = ["GRmenu.rb", "README.md", "LICENSE", "data/fonts.json"]
+  spec.files         = ["GRmenu.rb", "README.md", "LICENSE", "data/fonts.json", "data/borders.json", "data/colors.json"]
   spec.require_paths = ["."]
 end
