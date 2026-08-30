@@ -53,6 +53,27 @@ pip install grmenu
 
 ---
 
+## 🖥️ Línea de comandos (solo Python)
+
+Al instalar con `pip install grmenu` queda disponible el comando `GRmenu` (equivalente a `python -m GRmenu` si el comando no está en el `PATH`). Es solo informativo — no crea ningún menú — pensado para consultar la librería desde la terminal sin tener que abrir el código:
+
+```bash
+GRmenu -h          # o: python -m GRmenu -h
+```
+
+| Comando | Qué hace / qué imprime |
+|---|---|
+| `GRmenu -h`, `--help` | Banner + el listado de todas las opciones disponibles (esta misma tabla, generado por `argparse`). |
+| `GRmenu -a`, `--All` | Guía completa en una sola pantalla: parámetros del constructor, estilos de borde, fuentes del banner, colores disponibles, métodos de `SetStyle` y cómo ejecutar el menú. |
+| `GRmenu -s`, `--Style` | Los 20 estilos de borde (`style` / `banner_style`), cada uno con una vista previa real dibujada con esos mismos caracteres. |
+| `GRmenu -b`, `--Banner` | Las 10 fuentes ASCII del banner (`font`), cada una con una vista previa real renderizada, más los parámetros relacionados (`banner`, `banner_style`, `font`). |
+| `GRmenu -d`, `--Divider` | Explica el parámetro `divider` (cuándo se activa solo, `True`/`False`) y cómo cambiar su color. |
+| `GRmenu -e`, `--Example` | **Genera un archivo `example.py`** en el directorio actual: una calculadora completa y ejecutable que usa banner, subtítulo, título, estilos, colores y todos los métodos de `SetStyle`. Si `example.py` ya existe, no lo sobreescribe. Se ejecuta con `python example.py`. |
+
+Sin argumentos (`GRmenu`), muestra lo mismo que `-h`.
+
+---
+
 ## 🚀 Uso rápido
 
 ### 💎 Ruby
