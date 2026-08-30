@@ -11,7 +11,6 @@ from GRmenu import GRmenu, GRSubMenu
 
 REPO_URL = "https://github.com/JoseEduardoGR/GRmenu"
 
-
 def salir():
     print("Hasta luego!")
     sys.exit()
