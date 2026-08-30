@@ -68,28 +68,42 @@ if __name__ == "__main__":
     GRmenu.SetStyle.Banner("magenta", 2)
     GRmenu.SetStyle.Subtitle("cyan", 2)
     GRmenu.SetStyle.Divider("blue", 1)
+    # SetStyle.Welcome define la pantalla de bienvenida (antes de la primera
+    # tecla). Dos formas de usarla:
+    #
+    # Caso 1: imagen. Solo se ve como imagen real en terminales que soportan
+    # el protocolo de iTerm2 o Kitty (Kitty, WezTerm, iTerm2, Konsole...);
+    # en las que no lo soportan, cae al `text` de respaldo si se lo pasas
+    # (si no le pasas texto, se imprime un aviso).
+    GRmenu.SetStyle.Welcome()
 
-    while True:
-        # Se crea un menu nuevo en cada vuelta: GRmenu.__init__ pone la
-        # terminal en modo TTY crudo, que draw() restaura al elegir una
-        # opcion, asi que hay que volver a crearlo para la siguiente vuelta.
-        menu = GRmenu(
-            # Cada opcion puede ser una funcion (se usa su nombre) o una
-            # tupla (nombre a mostrar, funcion a ejecutar).
-            [
-                ("Sumar (+)", sumar),
-                ("Restar (-)", restar),
-                ("Multiplicar (x)", multiplicar),
-                ("Dividir (/)", dividir),
-                ("Salir", salir),
-            ],
-            title="Calculadora",                   # Titulo en el marco de opciones
-            style=7,                                # Estilo de marco de opciones (1 al 20)
-            banner="CALC",                          # Texto gigante en arte ASCII 3D
-            subtitle="Menu principal\nUsa las flechas y Enter",  # soporta \n
-            banner_style=3,                         # Estilo de marco del banner (1 al 20)
-            font=1,                                 # Fuente ASCII del banner (1 al 10)
-            divider=True,                           # Lineas divisorias junto al banner
-            center=True,                            # Centrado simetrico
-        )
-        menu.draw(size_max=30)
+    # Caso 2: solo texto, sin imagen. Anda igual en cualquier terminal.
+    # (Descomentar esta linea reemplaza al caso 1 de arriba.)
+    # GRmenu.SetStyle.Welcome(text="=== CALCULADORA ===")
+
+    # Si no llamas a SetStyle.Welcome() para nada, se usa el logo por
+    # defecto de GRmenu (imagen real o su version ASCII segun la terminal).
+
+    # Se crea un menu nuevo en cada vuelta: GRmenu.__init__ pone la
+    # terminal en modo TTY crudo, que draw() restaura al elegir una
+    # opcion, asi que hay que volver a crearlo para la siguiente vuelta.
+    menu = GRmenu(
+        # Cada opcion puede ser una funcion (se usa su nombre) o una
+        # tupla (nombre a mostrar, funcion a ejecutar).
+        [
+            ("Sumar (+)", sumar),
+            ("Restar (-)", restar),
+            ("Multiplicar (x)", multiplicar),
+            ("Dividir (/)", dividir),
+            ("Salir", salir),
+        ],
+        title="Calculadora",                   # Titulo en el marco de opciones
+        style=7,                                # Estilo de marco de opciones (1 al 20)
+        banner="CALC",                          # Texto gigante en arte ASCII 3D
+        subtitle="Menu principal\nUsa las flechas y Enter",  # soporta \n
+        banner_style=3,                         # Estilo de marco del banner (1 al 20)
+        font=1,                                 # Fuente ASCII del banner (1 al 10)
+        divider=True,                           # Lineas divisorias junto al banner
+        center=True,                            # Centrado simetrico
+    )
+    menu.draw(size_max=30)

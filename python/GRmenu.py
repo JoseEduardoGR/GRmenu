@@ -44,6 +44,7 @@
 #
 # ============================================================================
 import argparse
+import base64
 import time
 import os
 import sys
@@ -153,6 +154,8 @@ class GRmenu():
             self.D = sys.stdin.fileno()
             self.DF = termios.tcgetattr(self.D)
             tty.setraw(self.D)
+            sys.stdout.write("\x1b[?1000h")  # activa reporte de mouse (clicks/rueda)
+            sys.stdout.flush()
 
         self.functions = functions
         self.style = style
@@ -160,6 +163,7 @@ class GRmenu():
         self.title = title
         self.index = 0
         self._clear_seq = "\x1b[H\x1b[2J\x1b[3J"
+        self._image_shown = False
         self.banner = banner
         self.subtitle = subtitle
         self.banner_style = banner_style
@@ -256,6 +260,7 @@ class GRmenu():
         subtitle = {"color": "cyan", "level": 2}
         divider = {"color": "blue", "level": 1}
         font = 1
+        welcome = {"text": None, "image": None, "width": None, "height": None}
 
         @staticmethod
         def Border(color, level=1):
@@ -356,6 +361,38 @@ class GRmenu():
             """
             GRmenu.SetStyle.font = int(font_id)
 
+        @staticmethod
+        def Welcome(text=None, image=None, width=None, height=None):
+            """Define el contenido de la pantalla de bienvenida (`GRmenu.welcome`).
+
+            Si no se llama a este metodo (o se llama sin argumentos), la
+            bienvenida por defecto es el logo de GRmenu: la imagen real
+            (`assets/logo.png`) si la terminal la soporta, o su version en
+            ASCII (generada con `build_ascii_lines`) si no.
+
+            Args:
+                text: Texto o logo ASCII a imprimir en la pantalla de
+                    bienvenida. Si tambien se paso `image`, funciona como
+                    respaldo: se usa cuando la terminal NO soporta imagenes
+                    embebidas, en vez de `image`.
+                image: Ruta a un archivo de imagen (PNG/JPEG/GIF) para
+                    mostrar en la pantalla de bienvenida. Se muestra
+                    embebida en la terminal si esta soporta el protocolo
+                    de imagenes de iTerm2 o Kitty (ver `GRmenu._image_protocol`);
+                    si no lo soporta, se usa `text` como respaldo si se
+                    paso, o se imprime un aviso si no.
+                width: Ancho de la imagen en columnas de terminal. Si se
+                    omite (`None`), se usa 40 columnas por defecto para
+                    evitar que la imagen se vea gigante. Sin efecto si no
+                    se paso `image`.
+                height: Alto de la imagen en filas de terminal. Si se
+                    omite (`None`) junto con `width`, la terminal calcula
+                    el alto sola para mantener la proporcion de la imagen.
+            """
+            GRmenu.SetStyle.welcome = {
+                "text": text, "image": image, "width": width, "height": height,
+            }
+
     @staticmethod
     def _colorize(text, color_cfg):
         if not color_cfg:
@@ -377,6 +414,35 @@ class GRmenu():
         if os.path.exists(local):
             return local
         return os.path.join(here, "..", "data", filename)
+
+    @staticmethod
+    def _asset_path(filename) -> str:
+        return os.path.join(os.path.dirname(__file__), "assets", filename)
+
+    # Version en ASCII, hardcodeada a mano, del logo por defecto de GRmenu
+    # (icono hexagonal + wordmark "GR code"), usada como pantalla de
+    # bienvenida cuando la terminal no soporta imagenes embebidas. Colores
+    # fijos (blanco/azul) en vez de pasar por SetStyle, para que se vea
+    # igual que el logo real sin depender de la paleta configurada.
+    _DEFAULT_LOGO_ASCII = (
+        "                             \x1b[94m     _____________\x1b[0m\n"
+        "                             \x1b[94m    /             \\\x1b[0m\n"
+        "                             \x1b[94m   /      ___      \\\x1b[0m\n"
+        "                             \x1b[94m  /      /   \\      \\\x1b[0m\n"
+        "                             \x1b[94m /      /     \\      \\\x1b[0m\n"
+        "                             \x1b[94m \\      \\     /      /\x1b[0m\n"
+        "                             \x1b[94m  \\      \\   /      /\x1b[0m\n"
+        "                             \x1b[94m   \\               /\x1b[0m\n"
+        "                             \x1b[94m    \\             /\x1b[0m\n"
+        "                             \x1b[94m     _____________\x1b[0m\n"
+        "\n"
+        "\x1b[97m  ██████╗     ██████╗   \x1b[94m    ██████╗      ██████╗     ██████╗      ███████╗  \x1b[0m\n"
+        "\x1b[97m ██╔════╝     ██╔══██╗  \x1b[94m   ██╔════╝     ██╔═══██╗    ██╔══██╗     ██╔════╝  \x1b[0m\n"
+        "\x1b[97m ██║  ███╗    ██████╔╝  \x1b[94m   ██║          ██║   ██║    ██║  ██║     █████╗    \x1b[0m\n"
+        "\x1b[97m ██║   ██║    ██╔══██╗  \x1b[94m   ██║          ██║   ██║    ██║  ██║     ██╔══╝    \x1b[0m\n"
+        "\x1b[97m ╚██████╔╝    ██║  ██║  \x1b[94m   ╚██████╗     ╚██████╔╝    ██████╔╝     ███████╗  \x1b[0m\n"
+        "\x1b[97m  ╚═════╝     ╚═╝  ╚═╝  \x1b[94m    ╚═════╝      ╚═════╝     ╚═════╝      ╚══════╝  \x1b[0m"
+    )
 
     _fonts_cache = None
 
@@ -482,15 +548,118 @@ class GRmenu():
     def _call(f) -> Any:
         return f[1]() if isinstance(f, (list, tuple)) else f()
 
-    def menu(self) -> None:
-        """Pantalla mostrada antes de dibujar el menu por primera vez.
+    @staticmethod
+    def _image_protocol() -> Optional[str]:
+        """Detecta si la terminal soporta mostrar imagenes embebidas.
+
+        Se basa unicamente en variables de entorno (no hay forma portable
+        de consultarle al terminal si soporta un protocolo sin bloquear
+        esperando una respuesta), asi que es una deteccion best-effort:
+        cubre iTerm2, WezTerm (protocolo de iTerm2) y Kitty (o cualquier
+        terminal que herede su `TERM`/`KITTY_WINDOW_ID`, como Konsole).
+
+        Returns:
+            Optional[str]: "kitty", "iterm2", o `None` si no se detecto
+                soporte.
+        """
+        if "KITTY_WINDOW_ID" in os.environ or os.environ.get("TERM") == "xterm-kitty":
+            return "kitty"
+        if os.environ.get("TERM_PROGRAM") in ("iTerm.app", "WezTerm"):
+            return "iterm2"
+        return None
+
+    @staticmethod
+    def _show_image(path, width=None, height=None) -> None:
+        """Imprime un archivo de imagen embebido en la terminal.
+
+        Envia los bytes crudos del archivo (sin decodificar ni redimensionar,
+        para no depender de librerias externas como Pillow) codificados en
+        base64 dentro de la secuencia de escape del protocolo detectado por
+        `_image_protocol`. La terminal es la que decodifica, redimensiona y
+        dibuja la imagen.
+
+        Args:
+            path: Ruta al archivo de imagen (PNG/JPEG/GIF) a mostrar.
+            width: Ancho de la imagen en columnas de terminal. `None` deja
+                que la terminal calcule un ancho por defecto (que suele ser
+                el tamano nativo de la imagen, potencialmente enorme).
+            height: Alto de la imagen en filas de terminal. Si se omite
+                junto con `width`, la terminal preserva la proporcion.
+        """
+        protocol = GRmenu._image_protocol()
+        with open(path, "rb") as fh:
+            data = fh.read()
+        b64 = base64.b64encode(data).decode("ascii")
+        if protocol == "kitty":
+            size = ""
+            if width is not None:
+                size += f",c={int(width)}"
+            if height is not None:
+                size += f",r={int(height)}"
+            chunk_size = 4096
+            chunks = [b64[i:i + chunk_size] for i in range(0, len(b64), chunk_size)] or [""]
+            for i, chunk in enumerate(chunks):
+                more = 1 if i < len(chunks) - 1 else 0
+                header = f"a=T,f=100{size},m={more}" if i == 0 else f"m={more}"
+                sys.stdout.write(f"\x1b_G{header};{chunk}\x1b\\")
+            sys.stdout.write("\n")
+        else:
+            size = ""
+            if width is not None:
+                size += f";width={int(width)}"
+            if height is not None:
+                size += f";height={int(height)}"
+            sys.stdout.write(f"\x1b]1337;File=inline=1;size={len(data)}{size}:{b64}\a\n")
+        sys.stdout.flush()
+
+    def welcome(self) -> None:
+        """Pantalla de bienvenida mostrada antes de dibujar el menu por primera vez.
 
         Se llama una unica vez al comienzo de `draw()`, antes de leer la
-        primera tecla. Por defecto solo imprime "Press any key to start ...".
+        primera tecla. Su contenido se configura con `SetStyle.Welcome`:
+
+            - Si se configuro `image` y la terminal soporta imagenes
+              embebidas (ver `_image_protocol`), se muestra esa imagen.
+            - Si se configuro `image` pero la terminal NO las soporta, se
+              usa `text` como respaldo si se paso; si no, se imprime un
+              aviso.
+            - Si no se configuro `image` (pero si `text`), se imprime
+              `text` directamente (por ejemplo, un logo en ASCII).
+            - Si no se configuro ni `image` ni `text`, se usa el logo por
+              defecto de GRmenu (imagen real o su version ASCII, ver
+              `SetStyle.Welcome`).
+
         Pensado para ser sobreescrito (override) en una subclase si se
-        quiere mostrar una pantalla de bienvenida distinta.
+        quiere una pantalla de bienvenida totalmente distinta.
+
+        Limpia la pantalla antes de dibujar, para que cualquier cosa
+        impresa antes de crear el menu (por ejemplo un `GRmenu.banner()`
+        suelto) no quede pegada arriba del logo o del texto.
         """
-        print("Press any key to start ...")
+        print(self._clear_seq, end="")
+        w = GRmenu.SetStyle.welcome
+        image, text = w["image"], w["text"]
+        if image is None and text is None:
+            image = GRmenu._asset_path("logo.png")
+            text = GRmenu._DEFAULT_LOGO_ASCII
+        if image:
+            if GRmenu._image_protocol():
+                width = w["width"]
+                height = w["height"]
+                if width is None and height is None:
+                    width = 40
+                GRmenu._show_image(image, width, height)
+                self._image_shown = True
+            elif text:
+                for line in text.splitlines():
+                    print(line)
+            else:
+                print("Esta terminal no soporta imagenes")
+        elif text:
+            for line in text.splitlines():
+                print(line)
+        else:
+            print("Press any key to start ...")
 
     @staticmethod
     def _read_key(fd):
@@ -501,7 +670,14 @@ class GRmenu():
                 return {b'H': b'\x1b[A', b'P': b'\x1b[B',
                         b'K': b'\x1b[D', b'M': b'\x1b[C'}.get(ch2, ch2)
             return ch
-        return os.read(fd, 3)
+        data = os.read(fd, 3)
+        if data == b'\x1b[M':
+            cb, cx, cy = os.read(fd, 3)
+            if cb == 96: return b'\x1b[A'   # rueda arriba = flecha arriba
+            if cb == 97: return b'\x1b[B'   # rueda abajo = flecha abajo
+            return b''                       
+        return data
+
 
     def draw(self,size_max=20):
         """Dibuja el menu y arranca el loop de lectura de teclado.
@@ -519,8 +695,35 @@ class GRmenu():
                 usado aunque el texto de las opciones sea mas corto. Por
                 defecto 20.
         """
-        self.menu()
+        self.welcome()
+        try:
+            self._draw_loop(size_max)
+        finally:
+            if not sys.platform == "win32":
+                termios.tcsetattr(self.D, termios.TCSAFLUSH, self.DF)
+                sys.stdout.write("\x1b[?1000l")  # desactiva reporte de mouse
+                sys.stdout.flush()
+
+    @staticmethod
+    def _delete_shown_images() -> None:
+        """Borra las imagenes que sigan dibujadas via el protocolo de Kitty.
+
+        El clear de pantalla normal (`_clear_seq`, secuencias ANSI de
+        limpiar texto) no afecta a las imagenes dibujadas con el protocolo
+        grafico de Kitty: quedan como una capa aparte hasta que se borran
+        explicitamente con esta secuencia (`a=d,d=A` = borrar todas). Sin
+        esto, el logo mostrado en `welcome()` seguiria visible por debajo
+        del primer menu que se dibuja despues.
+        """
+        sys.stdout.write("\x1b_Ga=d,d=A\x1b\\")
+        sys.stdout.flush()
+
+    def _draw_loop(self, size_max):
         while (key := self._read_key(self.D)) != b'q':
+            if self._image_shown:
+                if GRmenu._image_protocol() == "kitty":
+                    self._delete_shown_images()
+                self._image_shown = False
             print(self._clear_seq, end="")
 
             self._up() if key==b'\x1b[A' else None # up
@@ -604,6 +807,8 @@ class GRmenu():
             if key == b'\r':
                 if not sys.platform == "win32":
                     termios.tcsetattr(self.D, termios.TCSAFLUSH, self.DF)
+                    sys.stdout.write("\x1b[?1000l")
+                    sys.stdout.flush()
                 print(self._clear_seq)
                 self._call(self.functions[self.index])
                 break
@@ -732,6 +937,7 @@ class GRmenu():
             ("SetStyle.Subtitle(color, level)", "color y brillo del subtitulo."),
             ("SetStyle.Divider(color, level)", "color y brillo de las lineas divisorias."),
             ("SetStyle.Font(font_id)", "fuente ASCII global del banner (1 al 10)."),
+            ("SetStyle.Welcome(text, image)", "contenido de la pantalla de bienvenida (GRmenu.welcome)."),
         ]
         for sig, desc in methods:
             print(f"  {GRmenu._colorize(sig.ljust(32), {'color': 'cyan', 'level': 1})} -> {desc}")

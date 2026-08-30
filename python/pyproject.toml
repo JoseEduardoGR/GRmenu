@@ -25,7 +25,8 @@ GRmenu = "GRmenu:GRmenu._cli"
 include = ["GRmenu.py", "example_template.py"]
 
 [tool.hatch.build.targets.wheel.force-include]
-"data" = "data"
+"../data" = "data"
+"assets" = "assets"
 
 [tool.hatch.build.targets.sdist]
 include = [
@@ -38,3 +39,4 @@ include = [
 
 [tool.hatch.build.targets.sdist.force-include]
 "../data" = "data"
+"assets" = "assets"
