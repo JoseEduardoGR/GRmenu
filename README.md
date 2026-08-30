@@ -264,6 +264,56 @@ Salida limpia y estructurada en consola:
 
 ---
 
+## 🖥️ Línea de Comandos en Consola (`python -m GRmenu`)
+
+Al instalar con `pip install grmenu` queda disponible el comando `GRmenu` (si no está en el `PATH`, usá `python -m GRmenu`). Es solo informativo — no crea ningún menú:
+
+```bash
+python -m GRmenu -h          # ayuda: lista todas las opciones disponibles
+python -m GRmenu -a          # guia completa (parametros, estilos, fuentes, colores, metodos)
+python -m GRmenu -s          # estilos de marco disponibles (style / banner_style, 1 al 20)
+python -m GRmenu -b          # fuentes ASCII del banner disponibles (font, 1 al 10)
+python -m GRmenu -d          # explica el parametro divider
+python -m GRmenu -e          # genera example.py en el directorio actual
+```
+
+Salida limpia y estructurada en consola (`python -m GRmenu -h`):
+
+```text
+╔══════════════════════════════════════════════════════════════════════════════╗
+║    ██████╗    ██████╗     ███╗   ███╗   ███████╗    ███╗   ██╗   ██╗  ██╗    ║
+║   ██╔════╝    ██╔══██╗    ████╗ ████║   ██╔════╝    ████╗  ██║   ██║  ██║    ║
+║   ██║  ███╗   ██████╔╝    ██╔████╔██║   █████╗      ██╔██╗ ██║   ██║  ██║    ║
+║   ██║   ██║   ██╔══██╗    ██║╚██╔╝██║   ██╔══╝      ██║╚██╗██║   ██║  ██║    ║
+║   ╚██████╔╝   ██║  ██║    ██║ ╚═╝ ██║   ███████╗    ██║ ╚████║   ╚█████╔╝    ║
+║    ╚═════╝    ╚═╝  ╚═╝    ╚═╝     ╚═╝   ╚══════╝    ╚═╝  ╚═══╝    ╚════╝     ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+──────────────────────────────────────────────────────────────────
+                    Ayuda de linea de comandos                    
+──────────────────────────────────────────────────────────────────
+
+usage: GRmenu [-h] [-a] [-s] [-b] [-d] [-e]
+
+GRmenu - libreria de menus interactivos para terminal en modo TTY crudo.
+
+options:
+  -h, --help     Muestra esta ayuda.
+  -a, --All      Muestra la guia completa (estilos, fuentes, colores,
+                 parametros, metodos).
+  -s, --Style    Muestra los estilos de marco disponibles (style /
+                 banner_style, 1 al 20).
+  -b, --Banner   Muestra las fuentes del banner (font, 1 al 10) y sus
+                 parametros.
+  -d, --Divider  Explica el parametro divider (lineas divisorias del
+                 banner/subtitulo).
+  -e, --Example  Genera example.py en el directorio actual con un ejemplo
+                 completo de la libreria.
+```
+
+Sin argumentos (`python -m GRmenu`), muestra lo mismo que `-h`. El resto de las banderas (`-a`, `-s`, `-b`, `-d`) además arrancan con un banner y subtítulo propios, y muestran previews reales generados con los mismos datos que usa la librería (no texto inventado).
+
+---
+
 ## 🕹️ Controles
 
 | Tecla       | Acción                    |
