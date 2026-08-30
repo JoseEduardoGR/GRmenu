@@ -1,11 +1,72 @@
+
+# ============================================================================
+#                    ⚠️  ADVERTENCIA NO TOCAR ESTE BLOQUE  ⚠️
+# ============================================================================
+#
+#   Este codigo fue escrito un martes a las 3:47 AM, con 4 cafes de por
+#   medio y sin recordar exactamente que hace `tty.setraw()`.
+#
+#   Se intento arreglar 6 veces. Las 6 veces empeoro.
+#   Se le agrego un try/except "por las dudas". Nadie sabe de que dudas.
+#   Se elimino ese try/except en un commit posterior porque "ya no hacia
+#   falta". Segun el historial de git, seguia haciendo falta.
+#
+#   Un colaborador anonimo (coautor sin foto, cuenta fantasma, nadie la
+#   vio nunca, nadie la va a ver nunca) lo toco una vez. Andaba peor.
+#   Se revirtio ese commit. Sigue sin explicacion por que andaba peor.
+#
+#   Se probo en Linux: anda.
+#   Se probo en macOS: anda, pero nadie sabe por que si es "casi lo mismo
+#   pero no realmente" segun el POSIX que le canta a termios en la ducha.
+#
+#   Windows es, aparte, un horror propio: una API de consola de otro
+#   planeta, un `msvcrt.getch()` que devuelve las flechas partidas en dos
+#   pedazos como acertijo, y un modo ANSI al que hay que pedirle permiso
+#   a `ctypes.windll` para que se digne a existir. Se escribio la rama
+#   entera citando la documentacion como quien cita las escrituras.
+#   No se probo en una maquina con Windows de verdad. Ni una sola vez.
+#   Nadie tiene una a mano. Nadie la quiere tener a mano.
+#   Hay fe de que funcione. Es la misma fe de siempre, aplicada a un
+#   sistema operativo nuevo.
+#
+#   Se le pidio a un modelo de lenguaje que lo explique.
+#   El modelo de lenguaje tambien reza antes de tocarlo.
+#
+#   No hay tests unitarios para esto. Hay fe.
+#   No hay documentacion tecnica para esto. Hay un README que dice
+#   "requiere una terminal real" como quien dice "requiere un milagro".
+#
+#   Si esto deja de funcionar algun dia, no va a ser por un bug.
+#   Va a ser porque alguien, en algun lugar, dejo de creer.
+#
+#
+#   Este codigo funciona gracias a obra divina.
+#
+# ============================================================================
 import argparse
 import time
 import os
 import sys
-import termios
-import tty
 import json
 from typing import Optional, Any
+
+# maldito windows especialito!
+if sys.platform == "win32":
+    import msvcrt
+    import ctypes
+else:
+    import termios
+    import tty
+
+def _enable_windows_ansi():
+    if not sys.platform == "win32":
+        return
+    kernel32 = ctypes.windll.kernel32
+    handle = kernel32.GetStdHandle(-11)  # STD_OUTPUT_HANDLE
+    mode = ctypes.c_uint32()
+    kernel32.GetConsoleMode(handle, ctypes.byref(mode))
+    kernel32.SetConsoleMode(handle, mode.value | 0x0004)  # ENABLE_VIRTUAL_TERMINAL_PROCESSING
+
 
 class GRmenu():
     class GRprint:
@@ -84,9 +145,15 @@ class GRmenu():
                 (`GRmenu.SetStyle.font`, ver `SetStyle.Font`); si se omite
                 (`None`) se respeta el valor ya configurado ahi.
         """
-        self.D = sys.stdin.fileno()
-        self.DF = termios.tcgetattr(self.D)
-        tty.setraw(self.D)
+        if sys.platform == "win32":
+            _enable_windows_ansi()
+            self.D = None
+            self.DF = None
+        else:
+            self.D = sys.stdin.fileno()
+            self.DF = termios.tcgetattr(self.D)
+            tty.setraw(self.D)
+
         self.functions = functions
         self.style = style
         self.GRprint.setFixPrint()
@@ -425,6 +492,17 @@ class GRmenu():
         """
         print("Press any key to start ...")
 
+    @staticmethod
+    def _read_key(fd):
+        if sys.platform ==  "win32":
+            ch = msvcrt.getch()
+            if ch in (b'\x00', b'\xe0'):          # prefijo de tecla especial
+                ch2 = msvcrt.getch()
+                return {b'H': b'\x1b[A', b'P': b'\x1b[B',
+                        b'K': b'\x1b[D', b'M': b'\x1b[C'}.get(ch2, ch2)
+            return ch
+        return os.read(fd, 3)
+
     def draw(self,size_max=20):
         """Dibuja el menu y arranca el loop de lectura de teclado.
 
@@ -442,7 +520,7 @@ class GRmenu():
                 defecto 20.
         """
         self.menu()
-        while (key := os.read(self.D,3)) != b'q':
+        while (key := self._read_key(self.D)) != b'q':
             print(self._clear_seq, end="")
 
             self._up() if key==b'\x1b[A' else None # up
@@ -524,7 +602,8 @@ class GRmenu():
                 print(self._colorize(symbol * width, bc))
 
             if key == b'\r':
-                termios.tcsetattr(self.D, termios.TCSAFLUSH, self.DF)
+                if not sys.platform == "win32":
+                    termios.tcsetattr(self.D, termios.TCSAFLUSH, self.DF)
                 print(self._clear_seq)
                 self._call(self.functions[self.index])
                 break
