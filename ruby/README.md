@@ -36,7 +36,7 @@ gem install grmenu
 O si trabajás con el archivo directamente en tu proyecto:
 
 ```ruby
-require_relative "GRmenu"
+require "GRmenu"
 ```
 
 <sub>Requiere Ruby ≥ 2.6.</sub>
@@ -78,7 +78,7 @@ A continuación se muestra el archivo de ejemplo completo [`e.rb`](e.rb) con acc
 ```ruby
 # frozen_string_literal: true
 
-require_relative "GRmenu"
+require "GRmenu"
 
 # 1. Definición de acciones/métodos
 def iniciar_servidor

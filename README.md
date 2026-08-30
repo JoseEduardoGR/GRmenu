@@ -139,7 +139,7 @@ A continuación se muestra el archivo de ejemplo completo [`ruby/e.rb`](ruby/e.r
 ```ruby
 # frozen_string_literal: true
 
-require_relative "GRmenu"
+require "GRmenu"
 
 # 1. Definición de acciones/métodos
 def iniciar_servidor
