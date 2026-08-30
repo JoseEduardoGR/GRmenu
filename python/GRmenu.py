@@ -1,9 +1,10 @@
-import math
+import time
 import os
 import sys
 import termios
 import tty
 import json
+from typing import Optional, Any
 
 class GRmenu():
     class GRprint:
@@ -46,8 +47,7 @@ class GRmenu():
     @staticmethod
     def COLORS() -> dict:
         if GRmenu._colors_cache is None:
-            path = os.path.join(os.path.dirname(__file__), "../data/colors.json")
-            with open(path, encoding="utf-8") as fh:
+            with open(GRmenu._data_path("colors.json"), encoding="utf-8") as fh:
                 raw = json.load(fh)
             GRmenu._colors_cache = {
                 name: ({level: f"\x1b[{code}" for level, code in codes.items()} if isinstance(codes, dict) else f"\x1b[{codes}")
@@ -60,8 +60,7 @@ class GRmenu():
     @staticmethod
     def BORDERS() -> dict:
         if GRmenu._borders_cache is None:
-            path = os.path.join(os.path.dirname(__file__), "../data/borders.json")
-            with open(path, encoding="utf-8") as fh:
+            with open(GRmenu._data_path("borders.json"), encoding="utf-8") as fh:
                 GRmenu._borders_cache = json.load(fh)
         return GRmenu._borders_cache
     
@@ -96,12 +95,20 @@ class GRmenu():
     def _hline(h, width):
         return (h * (width // len(h) + 1))[:width]
 
+    @staticmethod
+    def _data_path(filename) -> str:
+        here = os.path.dirname(__file__)
+        local = os.path.join(here, "data", filename)
+        if os.path.exists(local):
+            return local
+        return os.path.join(here, "..", "data", filename)
+
+    _fonts_cache = None
 
     @staticmethod
     def _fonts() -> dict:
         if GRmenu._fonts_cache is None:
-            path = os.path.join(os.path.dirname(__file__), "../data/fonts.json")
-            with open(path, encoding="utf-8") as fh:
+            with open(GRmenu._data_path("fonts.json"), encoding="utf-8") as fh:
                 GRmenu._fonts_cache = json.load(fh)
         return GRmenu._fonts_cache
 
