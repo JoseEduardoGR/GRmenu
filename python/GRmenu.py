@@ -45,6 +45,7 @@
 # ============================================================================
 import argparse
 import base64
+import inspect
 import time
 import os
 import sys
@@ -67,6 +68,35 @@ def _enable_windows_ansi():
     mode = ctypes.c_uint32()
     kernel32.GetConsoleMode(handle, ctypes.byref(mode))
     kernel32.SetConsoleMode(handle, mode.value | 0x0004)  # ENABLE_VIRTUAL_TERMINAL_PROCESSING
+
+
+class GRSubMenu:
+    """Lista de opciones anidada, para pasar directo (sin tupla) dentro
+    de la lista de `GRmenu`/`GRSubMenu` que la contiene.
+
+    En cuanto la fila que contiene un `GRSubMenu` queda resaltada, su
+    panel se dibuja automaticamente a la derecha; flecha derecha (o
+    Enter) mueve el foco de flechas/Enter adentro, flecha izquierda lo
+    devuelve al panel anterior. No tiene titulo, banner ni subtitulo
+    propios, y sus colores se heredan de `GRmenu.SetStyle` (son globales
+    a la clase). Su borde tambien se hereda: si no se pasa `style`, usa
+    el del panel que lo contiene (en cascada, nivel por nivel).
+    """
+    MAX_DEPTH = 4  # el menu principal cuenta como nivel 1: menu<sub<sub<sub
+
+    def __init__(self, functions, name, style=None, max_show_options=10, searchable=False):
+        self.functions = functions
+        self.name = name
+        self.style = style  # None = hereda el style resuelto del panel padre
+        self.max_show_options = max_show_options  # None = sin limite (muestra todas)
+        self.searchable = searchable  # habilita entrar en modo busqueda con "/"
+        self.index = 0
+        self.scroll = 0  # primera opcion visible, para cuando hay mas de max_show_options
+        self.search_active = False
+        self.search_query = ""
+        # Las marcas de espacio NO se guardan aca: viven en una sola lista
+        # global en la raiz (GRmenu._marked), para poder marcar opciones en
+        # distintos paneles/niveles y ejecutarlas todas juntas con un Enter.
 
 
 class GRmenu():
@@ -106,7 +136,7 @@ class GRmenu():
             """
             globals()['print'] = GRmenu.GRprint.p
 
-    def __init__(self,functions : list,title="",style=19,banner="",subtitle="",banner_style=3,divider=None,center=True,font=None):
+    def __init__(self,functions : list,title="",style=19,banner="",subtitle="",banner_style=3,divider=None,center=True,font=None,max_show_options=10,searchable=False):
         """Crea un nuevo menu interactivo de terminal.
 
         Pone la terminal en modo TTY crudo (raw) para poder leer las flechas
@@ -121,6 +151,10 @@ class GRmenu():
                 - una tupla/lista `(nombre, funcion)`: `nombre` se muestra
                   tal cual y `funcion` es la que se ejecuta al presionar
                   Enter.
+                - una tupla/lista `(nombre, funcion, descripcion)`:
+                  ademas de lo anterior, `descripcion` se muestra abajo a
+                  la derecha del recuadro de opciones mientras esa opcion
+                  este seleccionada.
             title: Titulo que se muestra dentro del recuadro de opciones. Si
                 queda vacio ("") no se dibuja la fila de titulo.
             style: Numero de estilo de marco de opciones a usar (1 al 20, ver
@@ -145,6 +179,20 @@ class GRmenu():
                 3D"). Si se pasa, actualiza el estilo global
                 (`GRmenu.SetStyle.font`, ver `SetStyle.Font`); si se omite
                 (`None`) se respeta el valor ya configurado ahi.
+            max_show_options: Maximo de opciones visibles a la vez dentro
+                del recuadro. Si hay mas, el recuadro no crece: se ve una
+                "ventana" de `max_show_options` filas, y bajar/subir con
+                las flechas mas alla del borde de esa ventana la hace
+                scrollear para revelar el resto (se muestra un indicador
+                tipo "7 de 30", la posicion de la opcion resaltada). `None`
+                = sin limite (muestra todas). Por defecto 10.
+            searchable: Si `True`, la tecla "/" entra en modo busqueda:
+                escribir filtra las opciones por nombre (sin importar
+                mayusculas), y mientras se esta escribiendo el resto de
+                las teclas (incluidas "t" y "q") se toman como texto de
+                busqueda en vez de su funcion normal. "/" o Escape de
+                nuevo sale del modo busqueda y vuelve a la lista completa.
+                Por defecto `False` (no cambia el comportamiento actual).
         """
         if sys.platform == "win32":
             _enable_windows_ansi()
@@ -155,13 +203,31 @@ class GRmenu():
             self.DF = termios.tcgetattr(self.D)
             tty.setraw(self.D)
             sys.stdout.write("\x1b[?1000h")  # activa reporte de mouse (clicks/rueda)
-            sys.stdout.flush()
+        sys.stdout.write("\x1b[?25l")  # oculta el cursor mientras el menu esta activo
+        sys.stdout.flush()
 
         self.functions = functions
         self.style = style
         self.GRprint.setFixPrint()
         self.title = title
+        self.max_show_options = max_show_options
+        self.searchable = searchable
         self.index = 0
+        self.scroll = 0
+        self.search_active = False
+        self.search_query = ""
+        # Lista GLOBAL de opciones marcadas con espacio, como pares
+        # (node, indice), en el orden en que se marcaron. Es global (vive
+        # aca, en la raiz) y no por panel, para poder marcar opciones en
+        # distintos GRSubMenu/niveles y que Enter las ejecute todas juntas
+        # sin importar en que panel este el foco en ese momento.
+        self._marked = []
+        self._preview = False
+        # Cadena de paneles actualmente "entrados" (via flecha derecha o
+        # Enter sobre una fila con un GRSubMenu): self siempre es el nivel
+        # 0. self._focus indica cual de estos paneles recibe flechas/Enter.
+        self._chain = [self]
+        self._focus = 0
         self._clear_seq = "\x1b[H\x1b[2J\x1b[3J"
         self._image_shown = False
         self.banner = banner
@@ -173,9 +239,54 @@ class GRmenu():
             GRmenu.SetStyle.Font(font)
 
     def _up(self):
-        self.index = (self.index - 1) % len(self.functions)
+        node = self._chain[self._focus]
+        filtered = self._filtered_indices(node)
+        if not filtered:
+            return
+        pos = filtered.index(node.index) if node.index in filtered else 0
+        node.index = filtered[(pos - 1) % len(filtered)]
+        self._clamp_scroll(node, filtered)
+
     def _down(self):
-        self.index =  (self.index + 1) % len(self.functions)
+        node = self._chain[self._focus]
+        filtered = self._filtered_indices(node)
+        if not filtered:
+            return
+        pos = filtered.index(node.index) if node.index in filtered else 0
+        node.index = filtered[(pos + 1) % len(filtered)]
+        self._clamp_scroll(node, filtered)
+
+    @staticmethod
+    def _filtered_indices(node):
+        """Indices (en node.functions) que pasan el filtro de busqueda de
+        node, en orden. Sin busqueda activa (o sin query) devuelve todos:
+        la navegacion/scroll/render usan esto siempre, asi que cuando no
+        hay busqueda se comportan exactamente igual que antes."""
+        if not getattr(node, "search_active", False):
+            return list(range(len(node.functions)))
+        query = getattr(node, "search_query", "").strip().lower()
+        if not query:
+            return list(range(len(node.functions)))
+        return [i for i, f in enumerate(node.functions) if query in GRmenu._name(f).lower()]
+
+    @staticmethod
+    def _clamp_scroll(node, filtered):
+        """Mueve node.scroll (primera opcion visible, como posicion DENTRO
+        de `filtered`) lo justo para que node.index quede dentro de la
+        ventana de node.max_show_options, tanto si el indice avanzo,
+        retrocedio, dio la vuelta (wrap), o `filtered` cambio de tamaño
+        (por busqueda)."""
+        limit = getattr(node, "max_show_options", None)
+        total = len(filtered)
+        if not limit or limit >= total:
+            node.scroll = 0
+            return
+        pos = filtered.index(node.index) if node.index in filtered else 0
+        if pos < node.scroll:
+            node.scroll = pos
+        elif pos >= node.scroll + limit:
+            node.scroll = pos - limit + 1
+        node.scroll = max(0, min(node.scroll, total - limit))
 
 
     @staticmethod
@@ -259,6 +370,7 @@ class GRmenu():
         banner = {"color": "magenta", "level": 2}
         subtitle = {"color": "cyan", "level": 2}
         divider = {"color": "blue", "level": 1}
+        description = {"color": "gray", "level": 1}
         font = 1
         welcome = {"text": None, "image": None, "width": None, "height": None}
 
@@ -348,6 +460,18 @@ class GRmenu():
                     el tono brillante. Por defecto 1.
             """
             GRmenu.SetStyle.divider = {"color": color, "level": level}
+
+        @staticmethod
+        def Description(color, level=1):
+            """Define el color de la descripcion de la opcion seleccionada.
+
+            Args:
+                color: Nombre del color a usar (debe existir en
+                    `GRmenu.COLORS()`, ver `Border` para la lista completa).
+                level: Intensidad del color: 1 para el tono normal, 2 para
+                    el tono brillante. Por defecto 1.
+            """
+            GRmenu.SetStyle.description = {"color": color, "level": level}
 
         @staticmethod
         def Font(font_id):
@@ -539,6 +663,8 @@ class GRmenu():
 
     @staticmethod
     def _name(f) -> str:
+        if isinstance(f, GRSubMenu):
+            return str(f.name)
         if isinstance(f, (list, tuple)):
             return str(f[0])
         name = getattr(f, "__name__", "opcion")
@@ -547,6 +673,23 @@ class GRmenu():
     @staticmethod
     def _call(f) -> Any:
         return f[1]() if isinstance(f, (list, tuple)) else f()
+
+    @staticmethod
+    def _description(f) -> str:
+        return str(f[2]) if isinstance(f, (list, tuple)) and len(f) > 2 else ""
+
+    @staticmethod
+    def _source(f, max_lines=20) -> list:
+        if isinstance(f, GRSubMenu):
+            return ["(esto es un submenu, no tiene codigo fuente)"]
+        func = f[1] if isinstance(f, (list, tuple)) else f
+        try:
+            lines = [ln.rstrip("\n") for ln in inspect.getsource(func).splitlines()]
+        except (OSError, TypeError):
+            return ["(no se pudo obtener el codigo fuente)"]
+        if len(lines) > max_lines:
+            lines = lines[:max_lines] + [f"... (+{len(lines) - max_lines} lineas)"]
+        return lines or ["(sin contenido)"]
 
     @staticmethod
     def _image_protocol() -> Optional[str]:
@@ -685,10 +828,35 @@ class GRmenu():
         Muestra las opciones (`self.functions`) dentro de un recuadro,
         resalta la opcion actualmente seleccionada, y queda esperando
         teclas:
-            - Flecha arriba / abajo: mueve la seleccion.
-            - Enter: restaura la configuracion original de la terminal,
-              ejecuta la opcion seleccionada y termina el loop.
-            - "q": sale del menu sin ejecutar ninguna opcion.
+            - Flecha arriba / abajo: mueve la seleccion dentro del panel
+              que tiene el foco.
+            - Flecha derecha o Enter sobre una fila que contiene un
+              `GRSubMenu`: entra a su panel, que se dibuja a la derecha (le
+              pasa el foco de flechas/Enter); flecha izquierda vuelve al
+              panel anterior. Hasta `GRSubMenu.MAX_DEPTH` niveles anidados.
+            - Enter sobre una opcion normal: restaura la configuracion
+              original de la terminal, ejecuta la opcion y termina el loop
+              (sea cual sea el panel/nivel donde este el foco).
+            - "t": muestra el codigo fuente de la funcion de la opcion
+              resaltada en el panel con foco (via `inspect.getsource`);
+              flechas y Enter quedan deshabilitados mientras se ve el
+              preview. Presionar "t" de nuevo vuelve al menu de opciones.
+            - "/" (si el panel con foco tiene `searchable=True`): entra en
+              modo busqueda, filtra las opciones por nombre a medida que
+              se escribe (mientras tanto "t"/"q" son solo letras, no su
+              funcion normal). "/" o Escape de nuevo sale y vuelve a la
+              lista completa.
+            - Espacio (fuera del modo busqueda): marca/desmarca la opcion
+              resaltada con "[x]" (no funciona sobre un `GRSubMenu`). Las
+              marcas son globales a todo el menu, no solo al panel actual:
+              se puede marcar algo en un `GRSubMenu`, volver con flecha
+              izquierda y marcar mas en otro panel/nivel. Con una o mas
+              opciones marcadas (de cualquier panel), Enter las ejecuta
+              TODAS en el orden en que se marcaron (en vez de solo la
+              resaltada) y termina el loop igual que con una sola opcion.
+            - "q" o Ctrl+C: sale del menu sin ejecutar ninguna opcion (con
+              busqueda activa, "q" es parte del texto: usar Ctrl+C o
+              salir de la busqueda primero).
 
         Args:
             size_max: Ancho minimo (en caracteres) del recuadro del menu,
@@ -702,7 +870,8 @@ class GRmenu():
             if not sys.platform == "win32":
                 termios.tcsetattr(self.D, termios.TCSAFLUSH, self.DF)
                 sys.stdout.write("\x1b[?1000l")  # desactiva reporte de mouse
-                sys.stdout.flush()
+            sys.stdout.write("\x1b[?25h")  # muestra de nuevo el cursor
+            sys.stdout.flush()
 
     @staticmethod
     def _delete_shown_images() -> None:
@@ -718,26 +887,241 @@ class GRmenu():
         sys.stdout.write("\x1b_Ga=d,d=A\x1b\\")
         sys.stdout.flush()
 
+    def _render_option_panel(self, node, size_max, style, focused):
+        """Devuelve (ancho, lineas ya coloreadas) del panel de opciones de
+        `node` (self o un GRSubMenu). Cada linea ya incluye sus dos bordes
+        verticales; no incluye el padding horizontal externo (eso lo pone
+        quien componga varios paneles uno al lado del otro en _draw_loop).
+
+        `focused` indica si ESTE panel es el que recibe flechas/Enter en
+        este momento: solo puede haber un foco a la vez en toda la
+        pantalla, asi que solo su fila resaltada se pinta con el color de
+        foco (indicando que funcion ejecutaria Enter). Los demas paneles
+        (los que llevaron hasta el panel con foco, o el preview de lo que
+        hay un nivel mas adentro) muestran la misma flechita de cursor,
+        pero sin colorear, para no sugerir que ahi tambien hay foco.
+        """
+        names = [self._name(f) for f in node.functions]
+        title = getattr(node, "title", "")
+        box_border = self.BORDERS().get(str(style))
+        bc, oc, fc, tc, dc = self.SetStyle.border, self.SetStyle.options, self.SetStyle.focus, self.SetStyle.title, self.SetStyle.description
+        searching = getattr(node, "search_active", False)
+        query = getattr(node, "search_query", "") if searching else ""
+        search_row = f"Buscar: {query}_" if searching else ""
+        marked = [i for n, i in self._marked if n is node]  # solo las de ESTE panel
+
+        # +8 = margen que consume la fila de opcion mas ancha posible
+        # ("│ [x] " + nombre + " │", el formato de una fila marcada con
+        # foco): con +6 (solo el "│ > " normal) una fila que se marca con
+        # espacio se podia pasar del ancho del recuadro.
+        width = max(
+            [size_max] + [len(n) + 8 for n in names]
+            + ([len(title) + 4] if title else [])
+            + ([len(search_row) + 4] if search_row else [])
+        )
+
+        filtered = self._filtered_indices(node)
+        limit = getattr(node, "max_show_options", None)
+        total = len(filtered)
+        truncated = bool(limit) and limit < total
+        window = filtered[node.scroll:node.scroll + limit] if truncated else filtered
+        visible = [(i, names[i]) for i in window]
+
+        lines = []
+        if box_border:
+            b = box_border
+            line = self._hline(b["h"], width - 2)
+            v = self._colorize(b["v"], bc)
+            lines.append(self._colorize(b["tl"] + line + b["tr"], bc))
+            if title:
+                lines.append(f"{v} {self._colorize(title.center(width - 4), tc)} {v}")
+                lines.append(self._colorize(b["v"] + line + b["v"], bc))
+            if searching:
+                lines.append(f"{v} {self._colorize(search_row.ljust(width - 4), dc)} {v}")
+                lines.append(self._colorize(b["v"] + line + b["v"], bc))
+            if not visible:
+                lines.append(f"{v} {self._colorize('(sin coincidencias)'.ljust(width - 4), oc)} {v}")
+            for i, name in visible:
+                if i in marked:
+                    color = (fc if focused else oc) if node.index == i else oc
+                    option = self._colorize(f"[x] {name.ljust(width - 8)}", color)
+                    lines.append(f"{v} {option} {v}")
+                elif node.index == i:
+                    option = self._colorize(f">{name.ljust(width - 6)}", fc if focused else oc)
+                    lines.append(f"{v}  {option} {v}")
+                else:
+                    option = self._colorize(f"> {name.ljust(width - 6)}", oc)
+                    lines.append(f"{v} {option} {v}")
+            lines.append(self._colorize(b["bl"] + line + b["br"], bc))
+        else:
+            symbol = self.STYLES().get(style, "#")
+            border = self._colorize(symbol, bc)
+            lines.append(self._colorize(symbol * width, bc))
+            if title:
+                lines.append(f"{border} {self._colorize(title.center(width - 4), tc)} {border}")
+                lines.append(self._colorize(symbol * width, bc))
+            if searching:
+                lines.append(f"{border} {self._colorize(search_row.ljust(width - 4), dc)} {border}")
+                lines.append(self._colorize(symbol * width, bc))
+            if not visible:
+                lines.append(f"{border} {self._colorize('(sin coincidencias)'.ljust(width - 4), oc)} {border}")
+            for i, name in visible:
+                color = (fc if focused else oc) if node.index == i else oc
+                content = f"[x] {name}" if i in marked else name
+                lines.append(f"{border} {self._colorize(content.ljust(width - 4), color)} {border}")
+            lines.append(self._colorize(symbol * width, bc))
+
+        if truncated:
+            pos = filtered.index(node.index) + 1 if node.index in filtered else 0
+            lines.append(self._colorize(f"{pos} de {total}".rjust(width), dc))
+
+        if marked:
+            plural = "s" if len(marked) != 1 else ""
+            lines.append(self._colorize(f"{len(marked)} marcada{plural}".rjust(width), dc))
+
+        desc = self._description(node.functions[node.index])
+        if desc:
+            lines.append(self._colorize(desc.rjust(width), dc))
+        return width, lines
+
+    def _render_source_panel(self, node, size_max, style, cols):
+        """Igual que `_render_option_panel`, pero en vez de la lista de
+        opciones muestra el codigo fuente de la opcion resaltada de `node`
+        (activado con "t", ver `_draw_loop`)."""
+        names = [self._name(f) for f in node.functions]
+        box_border = self.BORDERS().get(str(style))
+        bc, oc, tc = self.SetStyle.border, self.SetStyle.options, self.SetStyle.title
+        src = self._source(node.functions[node.index])
+        title = f"Preview: {names[node.index]}"
+        width = min(max([size_max] + [len(l) + 4 for l in src] + [len(title) + 4]), cols - 4)
+
+        lines = []
+        if box_border:
+            b = box_border
+            line = self._hline(b["h"], width - 2)
+            v = self._colorize(b["v"], bc)
+            lines.append(self._colorize(b["tl"] + line + b["tr"], bc))
+            lines.append(f"{v} {self._colorize(title.center(width - 4), tc)} {v}")
+            lines.append(self._colorize(b["v"] + line + b["v"], bc))
+            for ln in src:
+                lines.append(f"{v} {self._colorize(ln[:width - 4].ljust(width - 4), oc)} {v}")
+            lines.append(self._colorize(b["bl"] + line + b["br"], bc))
+        else:
+            symbol = self.STYLES().get(style, "#")
+            border = self._colorize(symbol, bc)
+            lines.append(self._colorize(symbol * width, bc))
+            lines.append(f"{border} {self._colorize(title.center(width - 4), tc)} {border}")
+            lines.append(self._colorize(symbol * width, bc))
+            for ln in src:
+                lines.append(f"{border} {self._colorize(ln[:width - 4].ljust(width - 4), oc)} {border}")
+            lines.append(self._colorize(symbol * width, bc))
+        lines.append(self._colorize("'t' para volver al menu".rjust(width), self.SetStyle.description))
+        return width, lines
+
     def _draw_loop(self, size_max):
-        while (key := self._read_key(self.D)) != b'q':
+        # tty.setraw() apaga ISIG, asi que Ctrl+C no llega como SIGINT sino
+        # como el byte \x03 leido normalmente: hay que salir a mano igual
+        # que con "q", si no el modo raw queda pegado hasta romper con kill.
+        while True:
+            key = self._read_key(self.D)
+            focus_node = self._chain[self._focus]
+            searching = focus_node.search_active
+
+            # "q" quita el menu, salvo mientras se esta escribiendo una
+            # busqueda (ahi "q" es una letra mas del texto). Ctrl+C
+            # siempre sale, sea cual sea el modo.
+            if key == b'\x03' or (key == b'q' and not searching):
+                break
+
             if self._image_shown:
                 if GRmenu._image_protocol() == "kitty":
                     self._delete_shown_images()
                 self._image_shown = False
             print(self._clear_seq, end="")
 
-            self._up() if key==b'\x1b[A' else None # up
-            self._down() if key==b'\x1b[B' else None # down
+            if searching:
+                # En modo busqueda cualquier tecla imprimible (incluidas
+                # "t"/"q") se toma como texto, no como su funcion normal.
+                if key in (b'/', b'\x1b'):
+                    focus_node.search_active = False
+                    focus_node.search_query = ""
+                    searching = False
+                elif key in (b'\x7f', b'\x08'):
+                    focus_node.search_query = focus_node.search_query[:-1]
+                elif len(key) == 1 and 32 <= key[0] <= 126:
+                    focus_node.search_query += key.decode("ascii", "ignore")
+                if searching:
+                    filtered = self._filtered_indices(focus_node)
+                    if filtered and focus_node.index not in filtered:
+                        focus_node.index = filtered[0]
+                    self._clamp_scroll(focus_node, filtered)
+            else:
+                if key == b'/' and focus_node.searchable and not self._preview:
+                    focus_node.search_active = True
+                    focus_node.search_query = ""
+                elif key == b't':
+                    self._preview = not self._preview
+                elif key == b' ' and not self._preview:
+                    row = focus_node.functions[focus_node.index]
+                    if not isinstance(row, GRSubMenu):
+                        pair = (focus_node, focus_node.index)
+                        if pair in self._marked:
+                            self._marked.remove(pair)
+                        else:
+                            self._marked.append(pair)
 
-            #print("right",end="\r\f") if key==b'\x1b[C' else None # right
-            #print("left",end="\r\f") if key==b'\x1b[D' else None # left
+            if not self._preview:
+                self._up() if key==b'\x1b[A' else None # up
+                self._down() if key==b'\x1b[B' else None # down
 
-            names = [self._name(f) for f in self.functions]
-            width = max([size_max] + [len(n) + 4 for n in names])
-            if self.title:
-                width = max(width, len(self.title) + 4)
+            # fila resaltada en el panel con foco ANTES de procesar flecha
+            # derecha/izquierda/Enter (que pueden cambiar self._chain).
+            focus_node = self._chain[self._focus]
+            focus_row = focus_node.functions[focus_node.index]
+
+            if not self._preview:
+                if key in (b'\x1b[C', b'\r') and isinstance(focus_row, GRSubMenu) \
+                        and len(self._chain) < GRSubMenu.MAX_DEPTH:
+                    # Derecha o Enter sobre un GRSubMenu SIEMPRE entra a su
+                    # panel, sin importar si hay opciones marcadas en otra
+                    # fila de este mismo nivel (una fila de GRSubMenu nunca
+                    # se puede marcar, asi que no hay ambiguedad real: solo
+                    # Enter sobre una opcion normal puede "competir" con las
+                    # marcadas, y eso se resuelve mas abajo).
+                    self._chain.append(focus_row)
+                    self._focus += 1
+                elif key == b'\x1b[D' and self._focus > 0:
+                    self._focus -= 1                # izquierda: vuelve un nivel
+                    del self._chain[self._focus + 1:]
 
             cols = GRmenu._term_width()
+
+            # Un panel por cada nivel ya "entrado" (self._chain), mas un
+            # preview automatico de un nivel mas si la fila resaltada en
+            # el ultimo panel es a su vez un GRSubMenu (sin necesidad de
+            # apretar flecha derecha todavia). El estilo de borde se
+            # hereda en cascada: cada nivel usa el suyo propio si lo
+            # define, si no el ya resuelto del panel que lo contiene.
+            # Solo el panel con self._focus se pinta como "el foco"
+            # (unico en toda la pantalla, ver _render_option_panel).
+            panels = []
+            style = self.style
+            for depth, node in enumerate(self._chain):
+                style = getattr(node, "style", None) or style
+                is_deepest = depth == len(self._chain) - 1
+                if is_deepest and self._preview:
+                    panels.append(self._render_source_panel(node, size_max, style, cols))
+                else:
+                    panels.append(self._render_option_panel(node, size_max, style, depth == self._focus))
+            if not self._preview and len(self._chain) < GRSubMenu.MAX_DEPTH:
+                last = self._chain[-1]
+                lookahead = last.functions[last.index]
+                if isinstance(lookahead, GRSubMenu):
+                    lookahead_style = getattr(lookahead, "style", None) or style
+                    panels.append(self._render_option_panel(lookahead, size_max, lookahead_style, focused=False))
+
+            total_w = sum(w for w, _ in panels) + 2 * (len(panels) - 1)
+
             banner_w = 0
             if self.banner:
                 bb = self.BORDERS().get(str(self.banner_style), self.BORDERS()["3"])
@@ -758,8 +1142,7 @@ class GRmenu():
                     print(self._colorize(bb["bl"] + bline + bb["br"], self.SetStyle.banner))
                 print()
 
-            ref = banner_w or width
-            pad = " " * ((ref - width) // 2) if self.center and ref > width else ""
+            ref = banner_w or total_w
 
             if self.subtitle:
                 div_w = min(ref, cols - 2)
@@ -771,47 +1154,31 @@ class GRmenu():
                     print(self._colorize("─" * div_w, self.SetStyle.divider))
                 print()
 
-            bc, oc, fc, tc = self.SetStyle.border, self.SetStyle.options, self.SetStyle.focus, self.SetStyle.title
-            box_border = self.BORDERS().get(str(self.style))
-            if box_border:
-                b = box_border
-                line = self._hline(b["h"], width - 2)
-                v = self._colorize(b["v"], bc)
-                print(self._colorize(b["tl"] + line + b["tr"], bc))
-                if self.title:
-                    print(f"{v} {self._colorize(self.title.center(width - 4), tc)} {v}")
-                    print(self._colorize(b["v"] + line + b["v"], bc))
-                for name in names:
-                    if self.index == names.index(name):
-                        option = self._colorize(f">{name.ljust(width - 6)}", fc)
-                        print(f"{v}  {option} {v}")
-                    else:
-                        option = self._colorize(f"> {name.ljust(width - 6)}", oc)
-                        print(f"{v} {option} {v}")
+            outer_pad = " " * ((ref - total_w) // 2) if self.center and ref > total_w else ""
+            height = max(len(lines) for _, lines in panels)
+            for row_i in range(height):
+                row = [lines[row_i] if row_i < len(lines) else " " * w for w, lines in panels]
+                print(outer_pad + "  ".join(row))
 
-                print(self._colorize(b["bl"] + line + b["br"], bc))
-            else:
-                symbol = self.STYLES().get(self.style, "#")
-                border = self._colorize(symbol, bc)
-                print(self._colorize(symbol * width, bc))
-                if self.title:
-                    print(f"{border} {self._colorize(self.title.center(width - 4), tc)} {border}")
-                    print(self._colorize(symbol * width, bc))
-                for name in names:
-                    if self.index == names.index(name):
-                        print(f"{border} {self._colorize(name.ljust(width - 4), fc)} {border}")
-                    else:
-                        print(f"{border} {self._colorize(name.ljust(width - 4), oc)} {border}")
-                print(self._colorize(symbol * width, bc))
-
-            if key == b'\r':
-                if not sys.platform == "win32":
-                    termios.tcsetattr(self.D, termios.TCSAFLUSH, self.DF)
-                    sys.stdout.write("\x1b[?1000l")
+            if key == b'\r' and not self._preview and not isinstance(focus_row, GRSubMenu):
+                # Si la fila resaltada es un GRSubMenu, Enter ya la entro
+                # arriba y no hay nada que ejecutar en esta vuelta. Si no,
+                # y hay opciones marcadas con espacio (self._marked es
+                # global: pueden ser de cualquier panel/nivel, no solo el
+                # que tiene el foco ahora), Enter las ejecuta TODAS en el
+                # orden en que se marcaron; si no hay ninguna marcada,
+                # ejecuta solo la resaltada.
+                to_run = [n.functions[i] for n, i in self._marked] if self._marked else [focus_row]
+                if to_run:
+                    if not sys.platform == "win32":
+                        termios.tcsetattr(self.D, termios.TCSAFLUSH, self.DF)
+                        sys.stdout.write("\x1b[?1000l")
+                    sys.stdout.write("\x1b[?25h")  # muestra el cursor antes de ejecutar
                     sys.stdout.flush()
-                print(self._clear_seq)
-                self._call(self.functions[self.index])
-                break
+                    print(self._clear_seq)
+                    for func in to_run:
+                        self._call(func)
+                    break
 
     # --- CLI: `python -m GRmenu -h/-a/-s/-b/-d/-e` -------------------------
 
