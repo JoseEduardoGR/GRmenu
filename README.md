@@ -14,6 +14,8 @@ Flechas arriba/abajo para moverte · `Enter` para elegir · `q` para salir
 [![License: MIT](https://img.shields.io/github/license/JoseEduardoGR/GRmenu)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS-blue)](https://github.com/JoseEduardoGR/GRmenu)
 
+![Demo de GRmenu](python/assets/demo.gif)
+
 </div>
 
 ---

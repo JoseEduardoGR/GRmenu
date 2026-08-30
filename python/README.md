@@ -14,6 +14,8 @@ Flechas arriba/abajo para moverte · `Enter` para elegir · `q` para salir
 [![GitHub last commit](https://img.shields.io/github/last-commit/JoseEduardoGR/GRmenu)](https://github.com/JoseEduardoGR/GRmenu/commits/main)
 [![GitHub stars](https://img.shields.io/github/stars/JoseEduardoGR/GRmenu?style=social)](https://github.com/JoseEduardoGR/GRmenu/stargazers)
 
+![Demo de GRmenu](assets/demo.gif)
+
 </div>
 
 ---
