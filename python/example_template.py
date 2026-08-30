@@ -3,7 +3,6 @@
 Generado por `python -m GRmenu -e` || `python -m GRmenu --Example`.
 Ejecutalo con: python example.py
 """
-
 import sys
 import webbrowser
 
