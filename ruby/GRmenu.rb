@@ -522,8 +522,8 @@ class GRmenu
   end
 
   def self.help
-    w = [terminal_width - 4, 64].min
-    w = [w, 42].max
+    w = [terminal_width - 4, 66].min
+    w = [w, 44].max
     inner_w = w - 2
     h_line = "═" * inner_w
     s_line = "─" * w
@@ -542,10 +542,13 @@ class GRmenu
     Kernel.print "    * Pausa interactiva: espera una sola tecla en modo TTY crudo.\r\n"
     Kernel.print "  #{Color.bright_green("GRmenu.banner(texto, delay, color:, level:, style:, font:)")}\r\n"
     Kernel.print "    * Renderiza banner ASCII 3D con marco y animacion opcional.\r\n"
-    Kernel.print "  #{Color.bright_green("GRmenu.spinner(mensaje, color:, &bloque)")}\r\n"
-    Kernel.print "    * Animacion de carga giratoria en tiempo real mientras corre un bloque.\r\n"
+    Kernel.print "  #{Color.bright_green("GRmenu.spinner(mensaje, color:, level:, &bloque)")}\r\n"
+    Kernel.print "    * Animacion giratoria en vivo mientras corre cualquier bloque.\r\n"
+    Kernel.print "    * Ejemplo: #{Color.bright_white("GRmenu.spinner(\"Cargando...\") { sleep 2 }")}\r\n"
     Kernel.print "  #{Color.bright_green("GRmenu.progress(total, title:, color:, style:, &bloque)")}\r\n"
-    Kernel.print "    * Barra de progreso porcentual interactiva dentro de recuadro.\r\n"
+    Kernel.print "    * Barra de progreso porcentual dentro de un recuadro estilizado.\r\n"
+    Kernel.print "    * Metodos del bloque: #{Color.cyan("bar.advance(1, status: \"...\")")}, #{Color.cyan("bar.set(val)")}\r\n"
+    Kernel.print "    * Ejemplo: #{Color.bright_white("GRmenu.progress(10, title: \"Descarga\") { |b| 10.times { b.advance(1) } }")}\r\n"
     Kernel.print "  #{Color.bright_green("GRmenu.div(longitud, color, level, char)")}\r\n"
     Kernel.print "    * Dibuja linea divisoria horizontal adaptable a la consola.\r\n"
     Kernel.print "  #{Color.bright_green("GRmenu.help")}\r\n"
@@ -592,12 +595,12 @@ class GRmenu
     Kernel.print "  #{Color.bright_green("divider:")}      #{Color.white("Boolean")} -> Divisores alineados al banner (true/false).\r\n"
     Kernel.print "  #{Color.bright_green("center:")}       #{Color.white("Boolean")} -> Centrado simetrico de subtitulo y menu (default true).\r\n\r\n"
 
-    Kernel.print "#{Color.bright_magenta("[6] FORMATO DE OPCIONES Y DESCRIPCIONES")}\r\n"
+    Kernel.print "#{Color.bright_magenta("[6] FORMATO DE OPCIONES Y TOOLTIPS OPCIONALES")}\r\n"
     Kernel.print "#{Color.bright_blue(s_line)}\r\n"
     Kernel.print "  #{Color.cyan("1. Method / Symbol:")}  #{Color.bright_white("method(:iniciar)")} o #{Color.bright_white(":iniciar")}\r\n"
     Kernel.print "  #{Color.cyan("2. Personalizado:")}    #{Color.bright_white("[\"Mi Accion\", method(:iniciar)]")}\r\n"
-    Kernel.print "  #{Color.cyan("3. Con Tooltip:")}      #{Color.bright_white("[\"Mi Accion\", method(:iniciar), \"Descripcion explicativa\"]")}\r\n"
-    Kernel.print "  #{Color.cyan("4. Lambda / Proc:")}    #{Color.bright_white("[\"Test\", -> { puts \"Hola\" }, \"Ejecuta lambda\"]")}\r\n\r\n"
+    Kernel.print "  #{Color.cyan("3. Con Tooltip:")}      #{Color.bright_white("[\"Mi Accion\", method(:iniciar), \"Descripcion opcional\"]")}\r\n"
+    Kernel.print "  #{Color.cyan("4. Lambda / Proc:")}    #{Color.bright_white("[\"Test\", -> { puts \"Hola\" }, \"Descripcion opcional\"]")}\r\n\r\n"
 
     Kernel.print "#{Color.bright_magenta("[7] METODOS DE CONFIGURACION (menu.set_style)")}\r\n"
     Kernel.print "#{Color.bright_blue(s_line)}\r\n"
