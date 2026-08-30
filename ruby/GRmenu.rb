@@ -124,7 +124,7 @@ class GRmenu
     5  => { h: "═",  v: "│", tl: "╒", tr: "╕", bl: "╘", br: "╛" },
     6  => { h: "─",  v: "║", tl: "╓", tr: "╖", bl: "╙", br: "╜" },
     7  => { h: "─",  v: "│", tl: "╭", tr: "╮", bl: "╰", br: "╯" },
-    8  => { h: "▀",  v: "▌", tl: "▛", tr: "▜", bl: "▙", br: "▟" },
+    8  => { h: "▀", hb: "▄", v: "▌", vl: "▌", vr: "▐", tl: "▛", tr: "▜", bl: "▙", br: "▟" },
     19 => { h: "●○", v: "●", tl: "●", tr: "●", bl: "●", br: "●" },
     20 => { h: "★☆", v: "★", tl: "★", tr: "★", bl: "★", br: "★" }
   }.freeze
@@ -159,17 +159,8 @@ class GRmenu
   end
 
   FONTS = _load_fonts
-  FONT_1 = FONTS[1] || {}.freeze
-  FONT_2 = FONTS[2] || {}.freeze
-  FONT_3 = FONTS[3] || {}.freeze
-  FONT_4 = FONTS[4] || {}.freeze
-  FONT_5 = FONTS[5] || {}.freeze
-  FONT_6 = FONTS[6] || {}.freeze
-  FONT_7 = FONTS[7] || {}.freeze
-  FONT_8 = FONTS[8] || {}.freeze
-  FONT_9 = FONTS[9] || {}.freeze
-  FONT_10 = FONTS[10] || {}.freeze
-  FONT = FONT_1
+  FONTS.each { |id, data| const_set("FONT_#{id}", data) }
+  FONT = FONTS[1] || {}.freeze
 
   class SetStyle
     def initialize(
@@ -609,25 +600,32 @@ class GRmenu
 
     lines = []
     box_w = 0
+    h_top = banner_border[:ht] || banner_border[:h]
+    h_bot = banner_border[:hb] || banner_border[:h]
+    v_l = banner_border[:vl] || banner_border[:v]
+    v_r = banner_border[:vr] || banner_border[:v]
+
     if ascii_rows
       content_w = ascii_rows.map(&:length).max
       box_w = content_w + 6
-      h_fill = build_horizontal_line(banner_border[:h], content_w + 4)
+      top_fill = build_horizontal_line(h_top, content_w + 4)
+      bot_fill = build_horizontal_line(h_bot, content_w + 4)
       
-      lines << colorize("#{banner_border[:tl]}#{h_fill}#{banner_border[:tr]}", banner_color_cfg)
+      lines << colorize("#{banner_border[:tl]}#{top_fill}#{banner_border[:tr]}", banner_color_cfg)
       ascii_rows.each do |row|
         pad = " " * (content_w - row.length)
-        lines << colorize("#{banner_border[:v]}  #{row}#{pad}  #{banner_border[:v]}", banner_color_cfg)
+        lines << colorize("#{v_l}  #{row}#{pad}  #{v_r}", banner_color_cfg)
       end
-      lines << colorize("#{banner_border[:bl]}#{h_fill}#{banner_border[:br]}", banner_color_cfg)
+      lines << colorize("#{banner_border[:bl]}#{bot_fill}#{banner_border[:br]}", banner_color_cfg)
     else
       clean_b = @banner.strip
       box_w = [clean_b.length + 6, term_cols - 2].min
-      h_fill = build_horizontal_line(banner_border[:h], box_w - 2)
+      top_fill = build_horizontal_line(h_top, box_w - 2)
+      bot_fill = build_horizontal_line(h_bot, box_w - 2)
       
-      lines << colorize("#{banner_border[:tl]}#{h_fill}#{banner_border[:tr]}", banner_color_cfg)
-      lines << colorize("#{banner_border[:v]} #{clean_b.center(box_w - 4)} #{banner_border[:v]}", banner_color_cfg)
-      lines << colorize("#{banner_border[:bl]}#{h_fill}#{banner_border[:br]}", banner_color_cfg)
+      lines << colorize("#{banner_border[:tl]}#{top_fill}#{banner_border[:tr]}", banner_color_cfg)
+      lines << colorize("#{v_l} #{clean_b.center(box_w - 4)} #{v_r}", banner_color_cfg)
+      lines << colorize("#{banner_border[:bl]}#{bot_fill}#{banner_border[:br]}", banner_color_cfg)
     end
     [lines, box_w]
   end
@@ -678,32 +676,41 @@ class GRmenu
     box_border = BORDERS[@style]
 
     if box_border
-      horizontal_fill = build_horizontal_line(box_border[:h], total_width - 2)
-      vertical_char   = colorize(box_border[:v], border_color_cfg)
+      h_top = box_border[:ht] || box_border[:h]
+      h_bot = box_border[:hb] || box_border[:h]
+      v_l_raw = box_border[:vl] || box_border[:v]
+      v_r_raw = box_border[:vr] || box_border[:v]
 
-      top_border_line = box_border[:tl] + horizontal_fill + box_border[:tr]
+      top_fill = build_horizontal_line(h_top, total_width - 2)
+      bot_fill = build_horizontal_line(h_bot, total_width - 2)
+      mid_fill = build_horizontal_line(h_top, total_width - 2)
+
+      v_left  = colorize(v_l_raw, border_color_cfg)
+      v_right = colorize(v_r_raw, border_color_cfg)
+
+      top_border_line = box_border[:tl] + top_fill + box_border[:tr]
       rendered_lines << "#{margin_left}#{colorize(top_border_line, border_color_cfg)}"
 
       unless @title.empty?
         centered_title = colorize(@title.center(total_width - 4), title_color_cfg)
-        rendered_lines << "#{margin_left}#{vertical_char} #{centered_title} #{vertical_char}"
+        rendered_lines << "#{margin_left}#{v_left} #{centered_title} #{v_right}"
 
-        separator_line = box_border[:v] + horizontal_fill + box_border[:v]
+        separator_line = v_l_raw + mid_fill + v_r_raw
         rendered_lines << "#{margin_left}#{colorize(separator_line, border_color_cfg)}"
       end
 
       option_names.each_with_index do |option_name, current_index|
         avail_w = [total_width - 6, 1].max
         if @index == current_index
-          highlighted_text = colorize(">#{option_name.ljust(avail_w)}", focus_color_cfg)
-          rendered_lines << "#{margin_left}#{vertical_char}  #{highlighted_text} #{vertical_char}"
+          highlighted_text = colorize("> #{option_name.ljust(avail_w)}", focus_color_cfg)
+          rendered_lines << "#{margin_left}#{v_left} #{highlighted_text} #{v_right}"
         else
-          normal_text = colorize("> #{option_name.ljust(avail_w)}", options_color_cfg)
-          rendered_lines << "#{margin_left}#{vertical_char} #{normal_text} #{vertical_char}"
+          normal_text = colorize("  #{option_name.ljust(avail_w)}", options_color_cfg)
+          rendered_lines << "#{margin_left}#{v_left} #{normal_text} #{v_right}"
         end
       end
 
-      bottom_border_line = box_border[:bl] + horizontal_fill + box_border[:br]
+      bottom_border_line = box_border[:bl] + bot_fill + box_border[:br]
       rendered_lines << "#{margin_left}#{colorize(bottom_border_line, border_color_cfg)}"
     else
       symbol_char  = STYLES[@style] || "#"
@@ -719,12 +726,12 @@ class GRmenu
       end
 
       option_names.each_with_index do |option_name, current_index|
-        avail_w = [total_width - 4, 1].max
+        avail_w = [total_width - 6, 1].max
         if @index == current_index
-          highlighted_text = colorize(option_name.ljust(avail_w), focus_color_cfg)
+          highlighted_text = colorize("> #{option_name.ljust(avail_w)}", focus_color_cfg)
           rendered_lines << "#{margin_left}#{solid_border} #{highlighted_text} #{solid_border}"
         else
-          normal_text = colorize(option_name.ljust(avail_w), options_color_cfg)
+          normal_text = colorize("  #{option_name.ljust(avail_w)}", options_color_cfg)
           rendered_lines << "#{margin_left}#{solid_border} #{normal_text} #{solid_border}"
         end
       end
