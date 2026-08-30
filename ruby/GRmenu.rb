@@ -521,17 +521,17 @@ class GRmenu
     Kernel.print("#{color_code}#{char * width}#{COLORS['reset']}\r\n")
   end
 
-  def self.help
-    w = [terminal_width - 4, 66].min
-    w = [w, 44].max
+  def self.help(section = :all)
+    w = [terminal_width - 4, 68].min
+    w = [w, 46].max
     inner_w = w - 2
     h_line = "═" * inner_w
     s_line = "─" * w
 
     Kernel.print "\r\n"
     Kernel.print "#{Color.bright_cyan("╔" + h_line + "╗")}\r\n"
-    Kernel.print "#{Color.bright_cyan("║")}#{Color.bright_yellow("GRmenu - Guia y Referencia Rapida".center(inner_w))}#{Color.bright_cyan("║")}\r\n"
-    Kernel.print "#{Color.bright_cyan("║")}#{Color.gray("Navegacion interactiva en terminal TTY".center(inner_w))}#{Color.bright_cyan("║")}\r\n"
+    Kernel.print "#{Color.bright_cyan("║")}#{Color.bright_yellow("GRmenu - Guia y Referencia Completa (v2.0)".center(inner_w))}#{Color.bright_cyan("║")}\r\n"
+    Kernel.print "#{Color.bright_cyan("║")}#{Color.gray("Menus interactivos, Banners 3D, Barras de Progreso y TTY".center(inner_w))}#{Color.bright_cyan("║")}\r\n"
     Kernel.print "#{Color.bright_cyan("╚" + h_line + "╝")}\r\n\r\n"
 
     Kernel.print "#{Color.bright_magenta("[1] HELPERS NATIVOS")}\r\n"
@@ -542,25 +542,46 @@ class GRmenu
     Kernel.print "    * Pausa interactiva: espera una sola tecla en modo TTY crudo.\r\n"
     Kernel.print "  #{Color.bright_green("GRmenu.banner(texto, delay, color:, level:, style:, font:)")}\r\n"
     Kernel.print "    * Renderiza banner ASCII 3D con marco y animacion opcional.\r\n"
-    Kernel.print "  #{Color.bright_green("GRmenu.spinner(mensaje, color:, level:, &bloque)")}\r\n"
-    Kernel.print "    * Animacion giratoria en vivo mientras corre cualquier bloque.\r\n"
-    Kernel.print "    * Ejemplo: #{Color.bright_white("GRmenu.spinner(\"Cargando...\") { sleep 2 }")}\r\n"
+    Kernel.print "  #{Color.bright_green("GRmenu.spinner(mensaje, color:, &bloque)")}\r\n"
+    Kernel.print "    * Animacion giratoria en vivo para tareas de tiempo desconocido.\r\n"
+    Kernel.print "    * Uso: #{Color.bright_white("GRmenu.spinner(\"Conectando...\") { conectar_db }")}\r\n"
     Kernel.print "  #{Color.bright_green("GRmenu.progress(total, title:, color:, style:, &bloque)")}\r\n"
     Kernel.print "    * Barra de progreso porcentual dentro de un recuadro estilizado.\r\n"
-    Kernel.print "    * Metodos del bloque: #{Color.cyan("bar.advance(1, status: \"...\")")}, #{Color.cyan("bar.set(val)")}\r\n"
-    Kernel.print "    * Ejemplo: #{Color.bright_white("GRmenu.progress(10, title: \"Descarga\") { |b| 10.times { b.advance(1) } }")}\r\n"
+    Kernel.print "    * El bloque recibe el objeto 'bar'. Metodos disponibles:\r\n"
+    Kernel.print "        - #{Color.cyan("bar.advance(1, status: \"...\")")} -> Avanza pasos y texto.\r\n"
+    Kernel.print "        - #{Color.cyan("bar.set(50, status: \"...\")")}    -> Fija el valor directamente.\r\n"
+    Kernel.print "        - #{Color.cyan("bar.finish(status: \"Listo\")")}   -> Completa la barra.\r\n"
+    Kernel.print "    * Uso facil: #{Color.bright_white("GRmenu.progress(10) { |bar| 10.times { bar.advance(1) } }")}\r\n"
     Kernel.print "  #{Color.bright_green("GRmenu.div(longitud, color, level, char)")}\r\n"
-    Kernel.print "    * Dibuja linea divisoria horizontal adaptable a la consola.\r\n"
-    Kernel.print "  #{Color.bright_green("GRmenu.help")}\r\n"
-    Kernel.print "    * Imprime esta guia visual interactiva en consola.\r\n\r\n"
+    Kernel.print "    * Dibuja linea divisoria horizontal adaptable a la consola.\r\n\r\n"
 
-    Kernel.print "#{Color.bright_magenta("[2] MODULO DE COLORES (Color / C)")}\r\n"
+    Kernel.print "#{Color.bright_magenta("[2] FORMATOS DE OPCIONES Y TOOLTIPS")}\r\n"
+    Kernel.print "#{Color.bright_blue(s_line)}\r\n"
+    Kernel.print "  #{Color.cyan("1. Metodo directo:")}     #{Color.bright_white("method(:iniciar)")} #{Color.gray("(auto-capitaliza nombre)")}\r\n"
+    Kernel.print "  #{Color.cyan("2. Simbolo:")}            #{Color.bright_white(":iniciar")}\r\n"
+    Kernel.print "  #{Color.cyan("3. Nombre propio:")}      #{Color.bright_white("[\"Mi Accion\", method(:iniciar)]")}\r\n"
+    Kernel.print "  #{Color.cyan("4. Con Tooltip/Info:")}   #{Color.bright_white("[\"Mi Accion\", method(:iniciar), \"Descripcion que sale abajo\"]")}\r\n"
+    Kernel.print "  #{Color.cyan("5. Lambda / Proc:")}      #{Color.bright_white("[\"Test\", -> { puts \"Hola\" }, \"Tooltip opcional\"]")}\r\n\r\n"
+
+    Kernel.print "#{Color.bright_magenta("[3] PARAMETROS DE GRmenu.new(functions, ...)")}\r\n"
+    Kernel.print "#{Color.bright_blue(s_line)}\r\n"
+    Kernel.print "  #{Color.bright_green("banner:")}       #{Color.white("String")}  -> Texto grande a renderizar en arte ASCII 3D.\r\n"
+    Kernel.print "  #{Color.bright_green("title:")}        #{Color.white("String")}  -> Titulo en el encabezado del recuadro.\r\n"
+    Kernel.print "  #{Color.bright_green("subtitle:")}     #{Color.white("String")}  -> Subtitulo / descripcion (soporta \\n).\r\n"
+    Kernel.print "  #{Color.bright_green("page_size:")}    #{Color.white("Integer")} -> Limite visible para scroll / paginacion automatica.\r\n"
+    Kernel.print "  #{Color.bright_green("font:")}         #{Color.white("Integer")} -> Fuente ASCII del banner (1 al 10, default 1).\r\n"
+    Kernel.print "  #{Color.bright_green("style:")}        #{Color.white("Integer")} -> Estilo de marco de opciones (1 al 20, default 19).\r\n"
+    Kernel.print "  #{Color.bright_green("banner_style:")} #{Color.white("Integer")} -> Estilo de marco del banner (1 al 20, default 3).\r\n"
+    Kernel.print "  #{Color.bright_green("divider:")}      #{Color.white("Boolean")} -> Divisores alineados al banner (true/false).\r\n"
+    Kernel.print "  #{Color.bright_green("center:")}       #{Color.white("Boolean")} -> Centrado simetrico de subtitulo y menu (default true).\r\n\r\n"
+
+    Kernel.print "#{Color.bright_magenta("[4] MODULO DE COLORES (Color / C)")}\r\n"
     Kernel.print "#{Color.bright_blue(s_line)}\r\n"
     Kernel.print "  #{Color.cyan("Uso directo: ")}#{Color.bright_white("puts Color.green(\"Texto\")")} | #{Color.bright_white("puts Color.bright_cyan(\"Texto\")")}\r\n"
     Kernel.print "  #{Color.cyan("Paleta: ")}#{Color.red("red")}, #{Color.green("green")}, #{Color.yellow("yellow")}, #{Color.blue("blue")}, #{Color.magenta("magenta")}, #{Color.purple("purple")}, #{Color.pink("pink")}, #{Color.cyan("cyan")}, #{Color.aqua("aqua")}, #{Color.orange("orange")}, #{Color.white("white")}, #{Color.gray("gray")}, #{Color.black("black")}.\r\n"
     Kernel.print "  #{Color.cyan("Brillo: ")}#{Color.white("1")} = Normal, #{Color.bright_white("2")} = Brillante / Bold.\r\n\r\n"
 
-    Kernel.print "#{Color.bright_magenta("[3] FUENTES ASCII 3D DEL BANNER (font: 1 al 10)")}\r\n"
+    Kernel.print "#{Color.bright_magenta("[5] FUENTES ASCII 3D DEL BANNER (font: 1 al 10)")}\r\n"
     Kernel.print "#{Color.bright_blue(s_line)}\r\n"
     Kernel.print "  #{Color.yellow("1")} -> #{Color.bright_white("ANSI Shadow 3D (Default)")}  #{Color.cyan("[██████╗  ██╗  ██╗]")}\r\n"
     Kernel.print "  #{Color.yellow("2")} -> #{Color.bright_white("Slant 3D (FIGlet)")}          #{Color.cyan("[    ____        __  __]")}\r\n"
@@ -573,7 +594,7 @@ class GRmenu
     Kernel.print "  #{Color.yellow("9")} -> #{Color.bright_white("Solid Fat 3D Block")}       #{Color.cyan("[  ██████▄  ██   ██]")}\r\n"
     Kernel.print "  #{Color.yellow("10")}-> #{Color.bright_white("Arcade Stars Matrix")}       #{Color.cyan("[  ★★★★   ★   ★]")}\r\n\r\n"
 
-    Kernel.print "#{Color.bright_magenta("[4] ESTILOS DE MARCO (style / banner_style: 1 al 20)")}\r\n"
+    Kernel.print "#{Color.bright_magenta("[6] ESTILOS DE MARCO (style / banner_style: 1 al 20)")}\r\n"
     Kernel.print "#{Color.bright_blue(s_line)}\r\n"
     Kernel.print "  #{Color.yellow("3")}  -> #{Color.bright_white("Doble linea")}        #{Color.cyan("╔═══╗ ║   ║ ╚═══╝")} (Default en Banner)\r\n"
     Kernel.print "  #{Color.yellow("7")}  -> #{Color.bright_white("Curvas redondeadas")} #{Color.cyan("╭───╮ │   │ ╰───╯")}\r\n"
@@ -582,25 +603,6 @@ class GRmenu
     Kernel.print "  #{Color.yellow("8")}  -> #{Color.bright_white("Bloques outline")}    #{Color.cyan("▛▀▀▀▜ ▌   ▐ ▙▄▄▄▟")}\r\n"
     Kernel.print "  #{Color.yellow("19")} -> #{Color.bright_white("Circulos")}           #{Color.cyan("●○○○● ●   ● ●○○○●")} (Default en Opciones)\r\n"
     Kernel.print "  #{Color.yellow("20")} -> #{Color.bright_white("Estrellas")}          #{Color.cyan("★☆☆☆★ ★   ★ ★☆☆☆★")}\r\n\r\n"
-
-    Kernel.print "#{Color.bright_magenta("[5] PARAMETROS DE GRmenu.new(functions, ...)")}\r\n"
-    Kernel.print "#{Color.bright_blue(s_line)}\r\n"
-    Kernel.print "  #{Color.bright_green("banner:")}       #{Color.white("String")}  -> Texto grande a renderizar en arte ASCII 3D.\r\n"
-    Kernel.print "  #{Color.bright_green("title:")}        #{Color.white("String")}  -> Titulo en el encabezado del recuadro.\r\n"
-    Kernel.print "  #{Color.bright_green("subtitle:")}     #{Color.white("String")}  -> Subtitulo / descripcion (soporta \\n).\r\n"
-    Kernel.print "  #{Color.bright_green("page_size:")}    #{Color.white("Integer")} -> Limite visible para scroll / paginacion automatica.\r\n"
-    Kernel.print "  #{Color.bright_green("font:")}         #{Color.white("Integer")} -> Fuente ASCII del banner (1 al 10, default 1).\r\n"
-    Kernel.print "  #{Color.bright_green("style:")}        #{Color.white("Integer")} -> Estilo de marco de opciones (1 al 20, default 19).\r\n"
-    Kernel.print "  #{Color.bright_green("banner_style:")} #{Color.white("Integer")} -> Estilo de marco del banner (1 al 20, default 3).\r\n"
-    Kernel.print "  #{Color.bright_green("divider:")}      #{Color.white("Boolean")} -> Divisores alineados al banner (true/false).\r\n"
-    Kernel.print "  #{Color.bright_green("center:")}       #{Color.white("Boolean")} -> Centrado simetrico de subtitulo y menu (default true).\r\n\r\n"
-
-    Kernel.print "#{Color.bright_magenta("[6] FORMATO DE OPCIONES Y TOOLTIPS OPCIONALES")}\r\n"
-    Kernel.print "#{Color.bright_blue(s_line)}\r\n"
-    Kernel.print "  #{Color.cyan("1. Method / Symbol:")}  #{Color.bright_white("method(:iniciar)")} o #{Color.bright_white(":iniciar")}\r\n"
-    Kernel.print "  #{Color.cyan("2. Personalizado:")}    #{Color.bright_white("[\"Mi Accion\", method(:iniciar)]")}\r\n"
-    Kernel.print "  #{Color.cyan("3. Con Tooltip:")}      #{Color.bright_white("[\"Mi Accion\", method(:iniciar), \"Descripcion opcional\"]")}\r\n"
-    Kernel.print "  #{Color.cyan("4. Lambda / Proc:")}    #{Color.bright_white("[\"Test\", -> { puts \"Hola\" }, \"Descripcion opcional\"]")}\r\n\r\n"
 
     Kernel.print "#{Color.bright_magenta("[7] METODOS DE CONFIGURACION (menu.set_style)")}\r\n"
     Kernel.print "#{Color.bright_blue(s_line)}\r\n"
