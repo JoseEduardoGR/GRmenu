@@ -1,3 +1,4 @@
+import argparse
 import time
 import os
 import sys
@@ -98,11 +99,7 @@ class GRmenu():
         self.divider = divider if divider is not None else bool(banner or subtitle)
         self.center = center
         if font is not None:
-            GRmenu.SetStyle.Font(font);
-        import argparse
-        if argparse._sys.argv and "-h" in argparse._sys.argv:
-            print("fack")
-            exit()
+            GRmenu.SetStyle.Font(font)
 
     def _up(self):
         self.index = (self.index - 1) % len(self.functions)
@@ -386,7 +383,7 @@ class GRmenu():
             font: Tipografia ASCII a usar (ver `build_ascii_lines`). Por
                 defecto 1.
         """
-        cols = os.get_terminal_size().columns
+        cols = GRmenu._term_width()
         cfg = {"color": color, "level": level}
         b = GRmenu.BORDERS().get(str(style), GRmenu.BORDERS()["3"])
         rows = GRmenu.build_ascii_lines(text, cols, font)
@@ -459,7 +456,7 @@ class GRmenu():
             if self.title:
                 width = max(width, len(self.title) + 4)
 
-            cols = os.get_terminal_size().columns
+            cols = GRmenu._term_width()
             banner_w = 0
             if self.banner:
                 bb = self.BORDERS().get(str(self.banner_style), self.BORDERS()["3"])
@@ -531,5 +528,191 @@ class GRmenu():
                 print(self._clear_seq)
                 self._call(self.functions[self.index])
                 break
+
+    # --- CLI: `python -m GRmenu -h/-a/-s/-b/-d/-e` -------------------------
+
+    @staticmethod
+    def _term_width(default=80) -> int:
+        try:
+            return os.get_terminal_size().columns
+        except OSError:
+            return default
+
+    @staticmethod
+    def _print_header(title, subtitle) -> None:
+        GRmenu.banner(title, color="magenta", level=2, style=3, font=1)
+        cols = min(GRmenu._term_width(), 66)
+        print(GRmenu._colorize("─" * cols, {"color": "blue", "level": 1}))
+        for line in subtitle.splitlines():
+            print(GRmenu._colorize(line.center(cols), {"color": "cyan", "level": 2}))
+        print(GRmenu._colorize("─" * cols, {"color": "blue", "level": 1}))
+        print()
+
+    @staticmethod
+    def _style_preview(n) -> str:
+        b = GRmenu.BORDERS().get(str(n))
+        if b:
+            h5 = GRmenu._hline(b["h"], 5)
+            return f"{b['tl']}{h5}{b['tr']}  {b['v']}     {b['v']}  {b['bl']}{h5}{b['br']}"
+        sym = GRmenu.STYLES().get(n, "#")
+        return f"{sym * 7}  {sym}     {sym}  {sym * 7}"
+
+    @staticmethod
+    def _print_style_help() -> None:
+        print(GRmenu._colorize("Estilos de marco disponibles (style / banner_style, 1 al 20):", {"color": "magenta", "level": 2}))
+        print(GRmenu._colorize("─" * 66, {"color": "blue", "level": 1}))
+        for n in range(1, 21):
+            label = GRmenu._colorize(f"{n:>2}", {"color": "yellow", "level": 2})
+            print(f"  {label} -> {GRmenu._style_preview(n)}")
+        print()
+        print("Se usan en: GRmenu(..., style=N, banner_style=N), o en runtime con")
+        print("  menu.style = N / menu.banner_style = N antes de menu.draw().")
+
+    @staticmethod
+    def _font_preview(font_id, sample="GR") -> str:
+        rows = GRmenu.build_ascii_lines(sample, 200, font_id)
+        return rows[0] if rows else "(sin glifos para la muestra)"
+
+    @staticmethod
+    def _print_banner_help() -> None:
+        print(GRmenu._colorize("Fuentes ASCII 3D del banner (font, 1 al 10):", {"color": "magenta", "level": 2}))
+        print(GRmenu._colorize("─" * 66, {"color": "blue", "level": 1}))
+        for n in range(1, 11):
+            label = GRmenu._colorize(f"{n:>2}", {"color": "yellow", "level": 2})
+            print(f"  {label} -> {GRmenu._font_preview(n)}")
+        print()
+        print("Parametros relacionados con el banner:")
+        rows = [
+            ("banner", "texto a renderizar en arte ASCII 3D."),
+            ("banner_style", "estilo de marco del banner (ver --Style)."),
+            ("font", "fuente ASCII de arriba (1 al 10)."),
+        ]
+        for name, desc in rows:
+            print(f"  {GRmenu._colorize(name.ljust(14), {'color': 'green', 'level': 2})} -> {desc}")
+        print(f"  {GRmenu._colorize('SetStyle.Banner(color, level)'.ljust(30), {'color': 'cyan', 'level': 1})} -> color del banner.")
+        print(f"  {GRmenu._colorize('SetStyle.Font(font_id)'.ljust(30), {'color': 'cyan', 'level': 1})} -> fuente global por defecto.")
+        print(f"  {GRmenu._colorize('GRmenu.banner(texto, ...)'.ljust(30), {'color': 'cyan', 'level': 1})} -> helper suelto, sin crear un menu.")
+
+    @staticmethod
+    def _print_divider_help() -> None:
+        print(GRmenu._colorize("Parametro divider:", {"color": "magenta", "level": 2}))
+        print(GRmenu._colorize("─" * 66, {"color": "blue", "level": 1}))
+        print("Dibuja una linea divisoria arriba y abajo del subtitulo, junto al banner.")
+        print()
+        rows = [
+            ("divider=None", "(default) se activa solo si hay banner o subtitle."),
+            ("divider=True", "siempre se dibuja."),
+            ("divider=False", "nunca se dibuja."),
+        ]
+        for name, desc in rows:
+            print(f"  {GRmenu._colorize(name.ljust(15), {'color': 'green', 'level': 2})} -> {desc}")
+        print()
+        print(f"  {GRmenu._colorize('SetStyle.Divider(color, level)'.ljust(30), {'color': 'cyan', 'level': 1})} -> color de las lineas (default: blue, 1).")
+
+    @staticmethod
+    def _print_all_help() -> None:
+        print(GRmenu._colorize("Parametros de GRmenu(functions, ...):", {"color": "magenta", "level": 2}))
+        print(GRmenu._colorize("─" * 66, {"color": "blue", "level": 1}))
+        params = [
+            ("functions", "opciones: funciones o tuplas (nombre, funcion)."),
+            ("title", "titulo del recuadro de opciones."),
+            ("style", "estilo de marco de opciones (1 al 20, default 19)."),
+            ("banner", "texto grande en arte ASCII 3D."),
+            ("subtitle", "subtitulo, soporta '\\n' para varias lineas."),
+            ("banner_style", "estilo de marco del banner (1 al 20, default 3)."),
+            ("font", "fuente ASCII del banner (1 al 10, default 1)."),
+            ("divider", "lineas divisorias junto al banner/subtitle."),
+            ("center", "centrado simetrico (default True)."),
+        ]
+        for name, desc in params:
+            print(f"  {GRmenu._colorize(name.ljust(14), {'color': 'green', 'level': 2})} -> {desc}")
+        print()
+
+        GRmenu._print_style_help()
+        print()
+        GRmenu._print_banner_help()
+        print()
+        GRmenu._print_divider_help()
+        print()
+
+        print(GRmenu._colorize("Colores disponibles (GRmenu.COLORS()):", {"color": "magenta", "level": 2}))
+        print(GRmenu._colorize("─" * 66, {"color": "blue", "level": 1}))
+        color_names = [c for c in GRmenu.COLORS() if c != "reset"]
+        print("  " + ", ".join(GRmenu._colorize(c, {"color": c, "level": 2}) for c in color_names))
+        print("  Brillo: 1 = normal, 2 = brillante.")
+        print()
+
+        print(GRmenu._colorize("Metodos de SetStyle:", {"color": "magenta", "level": 2}))
+        print(GRmenu._colorize("─" * 66, {"color": "blue", "level": 1}))
+        methods = [
+            ("SetStyle.Border(color, level)", "color y brillo del marco de opciones."),
+            ("SetStyle.Options(color, level)", "color y brillo de opciones no activas."),
+            ("SetStyle.Focus(color, level)", "color y brillo de la opcion resaltada."),
+            ("SetStyle.Title(color, level)", "color y brillo del titulo."),
+            ("SetStyle.Banner(color, level)", "color y brillo del banner."),
+            ("SetStyle.Subtitle(color, level)", "color y brillo del subtitulo."),
+            ("SetStyle.Divider(color, level)", "color y brillo de las lineas divisorias."),
+            ("SetStyle.Font(font_id)", "fuente ASCII global del banner (1 al 10)."),
+        ]
+        for sig, desc in methods:
+            print(f"  {GRmenu._colorize(sig.ljust(32), {'color': 'cyan', 'level': 1})} -> {desc}")
+        print()
+
+        print(GRmenu._colorize("Ejecucion:", {"color": "magenta", "level": 2}))
+        print(GRmenu._colorize("─" * 66, {"color": "blue", "level": 1}))
+        print(f"  {GRmenu._colorize('menu.draw(size_max=20)'.ljust(24), {'color': 'white', 'level': 2})} -> arranca el menu (flechas, Enter, q).")
+        print()
+        print("Genera un ejemplo completo con: python -m GRmenu -e")
+        print()
+
+    @staticmethod
+    def _generate_example(dest="example.py") -> None:
+        template_path = os.path.join(os.path.dirname(__file__), "example_template.py")
+        with open(template_path, encoding="utf-8") as fh:
+            content = fh.read()
+        if os.path.exists(dest):
+            print(GRmenu._colorize(f"Ya existe {dest}, no se sobreescribe.", {"color": "red", "level": 2}))
+            return
+        with open(dest, "w", encoding="utf-8") as fh:
+            fh.write(content)
+        print(GRmenu._colorize(f"Se genero {dest} con un ejemplo completo de uso de la libreria.", {"color": "green", "level": 2}))
+        print(f"Ejecutalo con: python {dest}")
+
+    @staticmethod
+    def _cli() -> None:
+        parser = argparse.ArgumentParser(
+            prog="GRmenu",
+            description="GRmenu - libreria de menus interactivos para terminal en modo TTY crudo.",
+            add_help=False,
+        )
+        parser.add_argument("-h", "--help", action="store_true", help="Muestra esta ayuda.")
+        parser.add_argument("-a", "--All", action="store_true", help="Muestra la guia completa (estilos, fuentes, colores, parametros, metodos).")
+        parser.add_argument("-s", "--Style", action="store_true", help="Muestra los estilos de marco disponibles (style / banner_style, 1 al 20).")
+        parser.add_argument("-b", "--Banner", action="store_true", help="Muestra las fuentes del banner (font, 1 al 10) y sus parametros.")
+        parser.add_argument("-d", "--Divider", action="store_true", help="Explica el parametro divider (lineas divisorias del banner/subtitulo).")
+        parser.add_argument("-e", "--Example", action="store_true", help="Genera example.py en el directorio actual con un ejemplo completo de la libreria.")
+        args = parser.parse_args()
+
+        if args.Example:
+            GRmenu._generate_example()
+        elif args.All:
+            GRmenu._print_header("GRMENU", "Guia y Referencia Rapida\nNavegacion interactiva en terminal TTY")
+            GRmenu._print_all_help()
+        elif args.Style:
+            GRmenu._print_header("STYLE", "Estilos de marco disponibles\n(style / banner_style, 1 al 20)")
+            GRmenu._print_style_help()
+        elif args.Banner:
+            GRmenu._print_header("BANNER", "Fuentes ASCII 3D del banner\n(font, 1 al 10)")
+            GRmenu._print_banner_help()
+        elif args.Divider:
+            GRmenu._print_header("DIVIDER", "Lineas divisorias junto al banner y subtitulo")
+            GRmenu._print_divider_help()
+        else:
+            GRmenu._print_header("GRMENU", "Ayuda de linea de comandos")
+            parser.print_help()
+
+
+if __name__ == "__main__":
+    GRmenu._cli()
 
 

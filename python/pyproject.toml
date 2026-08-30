@@ -19,7 +19,7 @@ classifiers = [
 ]
 
 [tool.hatch.build.targets.wheel]
-include = ["GRmenu.py"]
+include = ["GRmenu.py", "example_template.py"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "data" = "data"
@@ -27,6 +27,7 @@ include = ["GRmenu.py"]
 [tool.hatch.build.targets.sdist]
 include = [
     "GRmenu.py",
+    "example_template.py",
     "README.md",
     "LICENSE",
     "pyproject.toml",
