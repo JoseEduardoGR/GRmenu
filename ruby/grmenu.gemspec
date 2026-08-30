@@ -2,7 +2,7 @@
 
 Gem::Specification.new do |spec|
   spec.name          = "grmenu"
-  spec.version       = "2.0.0"
+  spec.version       = "3.0.0"
   spec.authors       = ["grcode"]
   spec.email         = ["garabatoangelopolis@gmail.com"]
 
@@ -16,6 +16,8 @@ Gem::Specification.new do |spec|
   spec.metadata["bug_tracker_uri"] = "https://github.com/JoseEduardoGR/GRmenu/issues"
   spec.metadata["changelog_uri"]   = "https://github.com/JoseEduardoGR/GRmenu/commits/main"
 
-  spec.files         = ["GRmenu.rb", "README.md", "LICENSE", "data/fonts.json", "data/borders.json", "data/colors.json"]
-  spec.require_paths = ["."]
+  spec.files            = ["GRmenu.rb", "README.md", "LICENSE", "data/fonts.json", "data/borders.json", "data/colors.json", "data/help.txt"]
+  spec.extra_rdoc_files = ["README.md"]
+  spec.rdoc_options     = ["--main", "README.md"]
+  spec.require_paths    = ["."]
 end
