@@ -46,6 +46,11 @@
 import argparse
 import base64
 import inspect
+import math
+import runpy
+import select
+import struct
+import subprocess
 import time
 import os
 import sys
@@ -136,7 +141,7 @@ class GRmenu():
             """
             globals()['print'] = GRmenu.GRprint.p
 
-    def __init__(self,functions : list,title="",style=19,banner="",subtitle="",banner_style=3,divider=None,center=True,font=None,max_show_options=10,searchable=False):
+    def __init__(self,functions : list,title="",style=19,banner="",subtitle="",banner_style=3,divider=None,center=True,font=None,max_show_options=10,searchable=False,animate=False):
         """Crea un nuevo menu interactivo de terminal.
 
         Pone la terminal en modo TTY crudo (raw) para poder leer las flechas
@@ -193,7 +198,25 @@ class GRmenu():
                 busqueda en vez de su funcion normal. "/" o Escape de
                 nuevo sale del modo busqueda y vuelve a la lista completa.
                 Por defecto `False` (no cambia el comportamiento actual).
+            animate: Anima el borde, el titulo y el banner del menu.
+                `False` (por defecto) no cambia nada del comportamiento ni
+                el rendimiento actual (sigue bloqueando esperando tecla,
+                sin redibujar de mas). Valores validos:
+                    - "rgb": arcoiris que recorre todo el espectro de color
+                      (ignora el color configurado en `SetStyle`).
+                    - "fade": el color YA configurado (`SetStyle.Border`,
+                      `.Title`, `.Banner`) sube y baja de brillo (respira).
+                    - "linear": el color configurado con una ola de brillo
+                      que se mueve de lado a lado.
+                    - "diagonal": igual que "linear", pero la ola tambien
+                      varia con la fila, asi que barre en diagonal.
+                Activarlo cambia el loop de lectura de teclas: en vez de
+                bloquear indefinidamente, espera hasta ~35ms por una tecla
+                y si no llega ninguna redibuja el frame (~28 FPS) en vez de
+                seguir esperando.
         """
+        if animate not in GRmenu.ANIMATIONS:
+            raise ValueError(f"animate debe ser uno de {GRmenu.ANIMATIONS!r}, no {animate!r}")
         if sys.platform == "win32":
             _enable_windows_ansi()
             self.D = None
@@ -202,7 +225,7 @@ class GRmenu():
             self.D = sys.stdin.fileno()
             self.DF = termios.tcgetattr(self.D)
             tty.setraw(self.D)
-            sys.stdout.write("\x1b[?1000h")  # activa reporte de mouse (clicks/rueda)
+            sys.stdout.write("\x1b[?1000h\x1b[?1003h")  # reporte de mouse: clicks/rueda + movimiento (hover)
         sys.stdout.write("\x1b[?25l")  # oculta el cursor mientras el menu esta activo
         sys.stdout.flush()
 
@@ -235,8 +258,117 @@ class GRmenu():
         self.banner_style = banner_style
         self.divider = divider if divider is not None else bool(banner or subtitle)
         self.center = center
+        self.animate = animate
+        self._anim_tick = 0.0
+        # Click/hover del mouse: `_read_key` deja las coordenadas del
+        # ultimo click/movimiento en `_last_click`/`_last_hover`;
+        # `_draw_loop` guarda en `_click_regions`, cuadro a cuadro, que
+        # opcion cae bajo cada celda clickeable de lo que ACABA de
+        # dibujar, para poder resolver el click/hover del PROXIMO frame
+        # (el que ya esta en pantalla cuando el usuario mueve el mouse).
+        self._last_click = None
+        self._last_hover = None
+        self._click_regions = []
         if font is not None:
             GRmenu.SetStyle.Font(font)
+        self._ensure_terminal_size()
+
+    def _estimate_size(self) -> tuple:
+        """Estima (columnas, filas) minimas para que ESTE menu (banner +
+        subtitulo + recuadro de opciones) se dibuje sin cortarse, con el
+        mismo criterio (aproximado) que usa el layout real de `draw()`.
+        Usada por `_ensure_terminal_size` para saber si hace falta
+        agrandar la terminal antes de la primera tecla."""
+        names = [self._name(f) for f in self.functions]
+        width = max([20] + [len(n) + 8 for n in names] + ([len(self.title) + 4] if self.title else []))
+        n_visible = min(len(self.functions), self.max_show_options or len(self.functions))
+        height = 2 + (1 if self.title else 0) + n_visible + 2  # borde + titulo + opciones + footer
+
+        if self.banner:
+            rows = GRmenu.build_ascii_lines(self.banner, 999, GRmenu.SetStyle.font)
+            if rows:
+                width = max(width, max(len(r) for r in rows) + 6)
+                height += len(rows) + 3
+            else:
+                width = max(width, len(self.banner.strip()) + 6)
+                height += 3
+
+        if self.subtitle:
+            sub_lines = self.subtitle.splitlines()
+            width = max(width, max(len(ln) for ln in sub_lines) + 2)
+            height += len(sub_lines) + (2 if self.divider else 0) + 1
+
+        return width + 2, height + 2  # margen de seguridad
+
+    def _ensure_terminal_size(self) -> None:
+        """Si la terminal actual es mas chica que lo que este menu
+        necesita (ver `_estimate_size`), intenta agrandarla. Nunca la
+        achica: si ya es mas grande de lo necesario, no hace nada.
+
+        Dos intentos, de mas a menos portable, ambos "best effort" (si
+        ninguno funciona, sigue de largo sin avisar: no hay forma
+        universal de saber de antemano si la terminal va a aceptar
+        alguno de los dos):
+
+        1. La secuencia XTWINOPS `CSI 8 ; filas ; columnas t` (la
+           soporta xterm y varios otros, pero kitty la rechaza a
+           proposito por diseño -- ver
+           https://sw.kovidgoyal.net/kitty/desktop-integration/ y su
+           postura sobre escape codes de control de ventana).
+        2. Si seguimos cortos Y estamos corriendo dentro de kitty
+           (`KITTY_WINDOW_ID` en el entorno), `kitty @ resize-os-window`
+           (su protocolo de control remoto). Requiere que la terminal
+           tenga `allow_remote_control` habilitado en `kitty.conf`; si
+           no lo tiene, el comando falla solo y no hace nada (no
+           modificamos esa config nosotros).
+        """
+        if sys.platform == "win32" or not sys.stdout.isatty():
+            return
+        try:
+            cur_cols, cur_rows = os.get_terminal_size()
+        except OSError:
+            return
+
+        need_cols, need_rows = self._estimate_size()
+        need_cols = min(need_cols, 300)   # nunca pedir algo absurdo
+        need_rows = min(need_rows, 80)
+        if need_cols <= cur_cols and need_rows <= cur_rows:
+            return
+
+        rows = max(need_rows, cur_rows)
+        cols = max(need_cols, cur_cols)
+
+        sys.stdout.write(f"\x1b[8;{rows};{cols}t")
+        sys.stdout.flush()
+        if self._wait_for_size(need_cols, need_rows):
+            return
+
+        if os.environ.get("KITTY_WINDOW_ID"):
+            try:
+                subprocess.run(
+                    ["kitty", "@", "resize-os-window", "--self", "--unit", "cells",
+                     "--width", str(cols), "--height", str(rows)],
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                    timeout=1.0, check=False,
+                )
+            except (OSError, subprocess.SubprocessError):
+                return
+            self._wait_for_size(need_cols, need_rows)
+
+    @staticmethod
+    def _wait_for_size(need_cols, need_rows, tries=10, interval=0.02) -> bool:
+        """Espera hasta `tries * interval` segundos a que la terminal
+        llegue a (al menos) `need_cols` x `need_rows`, dandole tiempo a
+        aplicar un resize recien pedido. Devuelve si lo logro."""
+        for _ in range(tries):
+            time.sleep(interval)
+            try:
+                size = os.get_terminal_size()
+            except OSError:
+                return False
+            if size.columns >= need_cols and size.lines >= need_rows:
+                return True
+        return False
 
     def _up(self):
         node = self._chain[self._focus]
@@ -306,13 +438,21 @@ class GRmenu():
                 intensidad (1 = normal, 2 = brillante) a la secuencia de
                 escape ANSI ya armada (con el prefijo "\\x1b["). La clave
                 especial "reset" contiene la secuencia para volver al color
-                por defecto de la terminal.
+                por defecto de la terminal. La clave "rgb" (si esta en
+                `colors.json`) NO se convierte a secuencia de escape: queda
+                como tupla `(r, g, b)`, la usa `_anim_color` como base para
+                animar ese color (ver `animate` en `GRmenu.__init__`).
         """
         if GRmenu._colors_cache is None:
             with open(GRmenu._data_path("colors.json"), encoding="utf-8") as fh:
                 raw = json.load(fh)
             GRmenu._colors_cache = {
-                name: ({level: f"\x1b[{code}" for level, code in codes.items()} if isinstance(codes, dict) else f"\x1b[{codes}")
+                name: (
+                    {
+                        **{level: f"\x1b[{code}" for level, code in codes.items() if level != "rgb"},
+                        **({"rgb": tuple(codes["rgb"])} if "rgb" in codes else {}),
+                    } if isinstance(codes, dict) else f"\x1b[{codes}"
+                )
                 for name, codes in raw.items()
             }
         return GRmenu._colors_cache
@@ -507,6 +647,158 @@ class GRmenu():
                 "text": text, "image": image, "width": width, "height": height,
             }
 
+    # --- Config .gr: exportar/importar GRmenu.SetStyle ---------------------
+    #
+    # Formato propio de GRmenu (no YAML/JSON), pensado para leerse a ojo:
+    #
+    #   GRmenu::config::1
+    #
+    #   <<border
+    #     color:: cyan
+    #     level:: 1
+    #   >>
+    #   ...
+    #   font:: 1
+    #   <<welcome
+    #     text:: (vacio)
+    #     image:: (vacio)
+    #     width:: (vacio)
+    #     height:: (vacio)
+    #   >>
+    #
+    # "::" separa clave y valor (tambien arma la cabecera "GRmenu::config::1").
+    # "<<nombre" abre una seccion, ">>" la cierra. Solo hay un nivel de
+    # anidado (una seccion no puede contener otra seccion adentro).
+
+    _CONFIG_HEADER = "GRmenu::config::1"
+    _CONFIG_COLOR_SECTIONS = ("border", "options", "focus", "title", "banner", "subtitle", "divider", "description")
+
+    @staticmethod
+    def ExportConfig(path=None) -> str:
+        """Exporta la configuracion global actual (`GRmenu.SetStyle`) a un
+        archivo `.gr` (formato propio de GRmenu, ver comentario arriba).
+
+        Args:
+            path: Donde guardar el archivo. Si se omite (`None`), se
+                guarda al lado del script que llama a esta funcion, con su
+                mismo nombre pero extension `.gr` (ej. si tu script es
+                "app.py", genera "app.gr" en la misma carpeta).
+
+        Returns:
+            str: la ruta donde quedo guardado el archivo (la que se paso,
+                o la resuelta automaticamente si `path` era `None`).
+        """
+        if path is None:
+            caller = inspect.stack()[1].filename
+            path = os.path.splitext(os.path.abspath(caller))[0] + ".gr"
+
+        S = GRmenu.SetStyle
+        lines = [GRmenu._CONFIG_HEADER, ""]
+        for name in GRmenu._CONFIG_COLOR_SECTIONS:
+            cfg = getattr(S, name)
+            lines.append(f"<<{name}")
+            lines.append(f"  color:: {cfg['color']}")
+            lines.append(f"  level:: {cfg['level']}")
+            lines.append(">>")
+            lines.append("")
+        lines.append(f"font:: {S.font}")
+        lines.append("")
+        lines.append("<<welcome")
+        for key, value in S.welcome.items():
+            if key == "text" and value:
+                value = value.replace("\n", "\\n")
+            lines.append(f"  {key}:: {'' if value is None else value}")
+        lines.append(">>")
+
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write("\n".join(lines) + "\n")
+        return path
+
+    @staticmethod
+    def _parse_config(path) -> dict:
+        with open(path, encoding="utf-8") as fh:
+            raw_lines = fh.read().splitlines()
+        lines = [ln for ln in raw_lines if ln.strip() and not ln.strip().startswith("#")]
+        if not lines or not lines[0].strip().startswith("GRmenu::config"):
+            raise ValueError(f"{path!r} no es un archivo de configuracion GRmenu (.gr) valido: falta la cabecera 'GRmenu::config::1'")
+
+        data = {}
+        section = None
+        section_data = {}
+        for ln in lines[1:]:
+            stripped = ln.strip()
+            if stripped.startswith("<<"):
+                if section is not None:
+                    raise ValueError(f"{path!r}: seccion '{section}' sin cerrar antes de abrir '{stripped[2:]}'")
+                section = stripped[2:].strip()
+                section_data = {}
+            elif stripped == ">>":
+                if section is None:
+                    raise ValueError(f"{path!r}: '>>' sin ninguna seccion abierta")
+                data[section] = section_data
+                section = None
+            elif "::" in stripped:
+                key, _, value = stripped.partition("::")
+                key, value = key.strip(), value.strip()
+                (section_data if section is not None else data)[key] = value
+            else:
+                raise ValueError(f"{path!r}: linea invalida: {ln!r}")
+        if section is not None:
+            raise ValueError(f"{path!r}: seccion '{section}' nunca se cerro con '>>'")
+        return data
+
+    @staticmethod
+    def ImportConfig(path) -> None:
+        """Carga un archivo `.gr` generado por `ExportConfig` (o escrito a
+        mano con el mismo formato) y aplica su configuracion a
+        `GRmenu.SetStyle`: afecta a cualquier menu creado despues de esta
+        llamada, igual que llamar a `SetStyle.Border(...)`, etc. a mano.
+
+        Una seccion/clave ausente en el archivo deja ese valor de
+        `SetStyle` como estaba (no lo resetea): un `.gr` puede tocar solo
+        una parte de la configuracion.
+
+        Args:
+            path: Ruta al archivo `.gr` a importar.
+
+        Raises:
+            ValueError: si el archivo no tiene el formato esperado (falta
+                la cabecera, una seccion quedo sin cerrar, etc).
+        """
+        data = GRmenu._parse_config(path)
+        S = GRmenu.SetStyle
+
+        for name in GRmenu._CONFIG_COLOR_SECTIONS:
+            if name not in data:
+                continue
+            current = getattr(S, name)
+            sect = data[name]
+            color = sect.get("color") or current["color"]
+            level = int(sect["level"]) if sect.get("level") else current["level"]
+            setattr(S, name, {"color": color, "level": level})
+
+        if "font" in data and data["font"]:
+            S.Font(int(data["font"]))
+
+        if "welcome" in data:
+            w = data["welcome"]
+            current = S.welcome
+
+            def resolve(key, cast=str):
+                # ausente en el .gr -> deja el valor actual sin tocar.
+                # presente pero vacio -> lo borra (None), a proposito.
+                # presente con valor -> lo castea y lo usa.
+                if key not in w:
+                    return current[key]
+                return cast(w[key]) if w[key] else None
+
+            S.Welcome(
+                text=resolve("text", lambda v: v.replace("\\n", "\n")),
+                image=resolve("image"),
+                width=resolve("width", int),
+                height=resolve("height", int),
+            )
+
     @staticmethod
     def _colorize(text, color_cfg):
         if not color_cfg:
@@ -516,6 +808,84 @@ class GRmenu():
         if not code:
             return text
         return f"{code}{text}{colors['reset']}"
+
+    ANIMATIONS = (False, "linear", "fade", "diagonal", "rgb")
+
+    @staticmethod
+    def _rgb_wave(t) -> tuple:
+        """Color arcoiris en el instante `t`: 3 senoidales desfasadas 120°
+        entre si (una por canal), igual formula que usa la version Ruby
+        para su modo "rgb"/"rainbow"/"chroma"."""
+        r = int(max(0, min(255, math.sin(t) * 127 + 128)))
+        g = int(max(0, min(255, math.sin(t + 2.0943951) * 127 + 128)))
+        b = int(max(0, min(255, math.sin(t + 4.1887902) * 127 + 128)))
+        return r, g, b
+
+    @staticmethod
+    def _scale_rgb(base, factor) -> tuple:
+        """Escala `base` (r, g, b) por `factor` (0.0 a 1.0), sin bajar de
+        1/4 de su brillo (para que el "valle" de un fade/pulso se vea
+        atenuado en vez de apagarse del todo a negro)."""
+        low = 0.25
+        f = low + (1 - low) * factor
+        return tuple(int(max(0, min(255, c * f))) for c in base)
+
+    def _anim_color(self, color_cfg, t) -> tuple:
+        """Color (r, g, b) para el instante `t`, segun `self.animate`.
+
+        "rgb" ignora `color_cfg` y cicla el espectro completo. El resto de
+        los modos parte del RGB base ya cargado en `COLORS()[...]["rgb"]`
+        para el color configurado (`color_cfg["color"]`) y le anima el
+        brillo con la misma senoidal, en vez de cambiar de tono."""
+        if self.animate == "rgb":
+            return self._rgb_wave(t)
+        base = self.COLORS().get(color_cfg.get("color"), {}).get("rgb", (255, 255, 255))
+        factor = (math.sin(t) + 1) / 2
+        return self._scale_rgb(base, factor)
+
+    def _colorize_anim(self, text, color_cfg, row=0, col=0) -> str:
+        """Como `_colorize`, pero si `self.animate` esta activo devuelve
+        `text` animado en vez del color fijo de `color_cfg`.
+
+        Sin animacion activa (`self.animate` en `False`, el default) se
+        comporta identico a `_colorize`: cero cambio de comportamiento.
+
+        - "fade": un solo color (truecolor) para todo `text`, cuyo brillo
+          sube y baja con el reloj de la animacion (`self._anim_tick`).
+        - "rgb"/"linear"/"diagonal": un color por caracter, con una fase
+          que depende de la posicion horizontal (las 3) y ademas de `row`
+          (la vertical, solo "diagonal") para que la ola se vea barrer el
+          recuadro en diagonal en vez de solo de lado a lado.
+
+        `col` es la columna (dentro de la fila que se esta dibujando) en
+        la que arranca `text`: la fase horizontal se calcula con
+        `col + i`, no solo `i`. Hace falta cuando `text` no es la fila
+        completa -- por ejemplo el borde vertical derecho, que se
+        colorea suelto (un solo caracter) para reusarlo en varias filas;
+        sin `col` esa fase siempre daria la del caracter en la columna 0
+        (la misma que el borde IZQUIERDO), en vez de la que le toca del
+        lado derecho del recuadro.
+        """
+        if not self.animate or not color_cfg:
+            return self._colorize(text, color_cfg)
+        if self.animate == "fade":
+            r, g, b = self._anim_color(color_cfg, self._anim_tick)
+            return f"\x1b[38;2;{r};{g};{b}m{text}\x1b[0m"
+        out = [""] * len(text)
+        for i, ch in enumerate(text):
+            if ch in (" ", "\n", "\t"):
+                out[i] = ch
+                continue
+            pos = col + i
+            if self.animate == "rgb":
+                phase = pos * 0.12
+            elif self.animate == "diagonal":
+                phase = pos * 0.3 + row * 0.6
+            else:  # "linear"
+                phase = pos * 0.3
+            r, g, b = self._anim_color(color_cfg, self._anim_tick + phase)
+            out[i] = f"\x1b[38;2;{r};{g};{b}m{ch}"
+        return "".join(out) + "\x1b[0m"
 
     @staticmethod
     def _hline(h, width):
@@ -701,6 +1071,58 @@ class GRmenu():
             return "iterm2"
         return None
 
+    # Ancho/alto aproximado de una celda de terminal, en pixels (una
+    # celda tipica de fuente monoespaciada es mas alta que ancha). No hay
+    # forma de pedirselo a la terminal sin una consulta que puede colgarse
+    # si no la soporta, asi que se usa esta aproximacion estandar para
+    # calcular cuantas FILAS le corresponden a una imagen dada su ancho
+    # en COLUMNAS, sin que se vea estirada (ver `_sniff_image_size` y su
+    # uso en `welcome`).
+    _CELL_ASPECT = 0.5
+
+    @staticmethod
+    def _sniff_image_size(path) -> Optional[tuple]:
+        """Ancho x alto (en pixels) de un PNG/GIF/JPEG/BMP, leyendo solo
+        su cabecera -- sin decodificar la imagen ni depender de Pillow ni
+        ninguna libreria externa.
+
+        Returns:
+            Optional[tuple]: `(ancho, alto)` en pixels, o `None` si no se
+                pudo determinar (formato no reconocido, archivo
+                corrupto/truncado, etc). Quien lo llama debe tratar
+                `None` como "no se sabe el tamano", no como un error.
+        """
+        try:
+            with open(path, "rb") as fh:
+                head = fh.read(32)
+                if head[:8] == b"\x89PNG\r\n\x1a\n":
+                    w, h = struct.unpack(">II", head[16:24])
+                    return w, h
+                if head[:6] in (b"GIF87a", b"GIF89a"):
+                    w, h = struct.unpack("<HH", head[6:10])
+                    return w, h
+                if head[:2] == b"BM":
+                    w, h = struct.unpack("<ii", head[18:26])
+                    return abs(w), abs(h)
+                if head[:2] == b"\xff\xd8":
+                    fh.seek(2)
+                    while True:
+                        marker = fh.read(2)
+                        if len(marker) < 2 or marker[0] != 0xff:
+                            return None
+                        kind = marker[1]
+                        if kind in (0xd8, 0xd9):  # SOI/EOI, sin tamaño
+                            continue
+                        seg_len = struct.unpack(">H", fh.read(2))[0]
+                        if 0xc0 <= kind <= 0xcf and kind not in (0xc4, 0xc8, 0xcc):
+                            fh.read(1)  # precision
+                            h, w = struct.unpack(">HH", fh.read(4))
+                            return w, h
+                        fh.seek(seg_len - 2, 1)
+        except (OSError, struct.error):
+            return None
+        return None
+
     @staticmethod
     def _show_image(path, width=None, height=None) -> None:
         """Imprime un archivo de imagen embebido en la terminal.
@@ -745,6 +1167,18 @@ class GRmenu():
             sys.stdout.write(f"\x1b]1337;File=inline=1;size={len(data)}{size}:{b64}\a\n")
         sys.stdout.flush()
 
+    def _banner_cols(self) -> Optional[int]:
+        """Ancho (en columnas) que va a ocupar `self.banner` cuando se
+        dibuje, con el mismo criterio que usa `_draw_loop`. `None` si
+        este menu no tiene banner configurado."""
+        if not self.banner:
+            return None
+        cols = GRmenu._term_width()
+        rows = self.build_ascii_lines(self.banner, cols, self.SetStyle.font)
+        if rows:
+            return max(len(r) for r in rows) + 6
+        return min(len(self.banner.strip()) + 6, cols - 2)
+
     def welcome(self) -> None:
         """Pantalla de bienvenida mostrada antes de dibujar el menu por primera vez.
 
@@ -753,6 +1187,11 @@ class GRmenu():
 
             - Si se configuro `image` y la terminal soporta imagenes
               embebidas (ver `_image_protocol`), se muestra esa imagen.
+              Si no se paso `width`/`height` explicito, el ancho por
+              defecto es el del banner de este menu (o 40 columnas si no
+              tiene banner), y el alto se calcula a partir del tamaño
+              real del archivo (ver `_sniff_image_size`) para que
+              mantenga su proporcion en vez de verse estirada.
             - Si se configuro `image` pero la terminal NO las soporta, se
               usa `text` como respaldo si se paso; si no, se imprime un
               aviso.
@@ -780,7 +1219,11 @@ class GRmenu():
                 width = w["width"]
                 height = w["height"]
                 if width is None and height is None:
-                    width = 40
+                    width = self._banner_cols() or 40
+                    size = GRmenu._sniff_image_size(image)
+                    if size and size[0] > 0:
+                        img_w, img_h = size
+                        height = max(1, round(img_h / img_w * width * GRmenu._CELL_ASPECT))
                 GRmenu._show_image(image, width, height)
                 self._image_shown = True
             elif text:
@@ -794,8 +1237,7 @@ class GRmenu():
         else:
             print("Press any key to start ...")
 
-    @staticmethod
-    def _read_key(fd):
+    def _read_key(self, fd):
         if sys.platform ==  "win32":
             ch = msvcrt.getch()
             if ch in (b'\x00', b'\xe0'):          # prefijo de tecla especial
@@ -806,10 +1248,46 @@ class GRmenu():
         data = os.read(fd, 3)
         if data == b'\x1b[M':
             cb, cx, cy = os.read(fd, 3)
-            if cb == 96: return b'\x1b[A'   # rueda arriba = flecha arriba
-            if cb == 97: return b'\x1b[B'   # rueda abajo = flecha abajo
-            return b''                       
+            code = cb - 32
+            if code == 64: return b'\x1b[A'   # rueda arriba = flecha arriba
+            if code == 65: return b'\x1b[B'   # rueda abajo = flecha abajo
+            if code & 0x20:                   # movimiento (?1003h): hover, con o sin boton
+                self._last_hover = (cx - 32, cy - 32)  # (columna, fila), 1-based
+                return b'\x1b[HOVER'
+            if code == 0:                     # click izquierdo (sin modificadores), press
+                self._last_click = (cx - 32, cy - 32)  # (columna, fila), 1-based
+                return b'\x1b[CLICK'
+            return b''
         return data
+
+    _ANIM_FRAME_SECONDS = 0.035  # ~28 FPS, mismo intervalo que usa Ruby
+    _ANIM_TICK_STEP = 0.08
+
+    def _read_key_or_tick(self):
+        """Como `_read_key(self.D)`, pero si `self.animate` esta activo no
+        bloquea indefinidamente: espera como mucho `_ANIM_FRAME_SECONDS`
+        por una tecla y, si no llega ninguna en ese tiempo, avanza el
+        reloj de la animacion (`self._anim_tick`) y devuelve `b''` (una
+        tecla "vacia" que _draw_loop ya ignora sin cambiar nada de
+        estado, asi que solo hace que se vuelva a dibujar el frame con el
+        color animado actualizado).
+
+        Sin `self.animate` (el default) es identico a `_read_key`: sigue
+        bloqueado esperando la proxima tecla, sin overhead nuevo.
+        """
+        if not self.animate:
+            return self._read_key(self.D)
+        if sys.platform == "win32":
+            if msvcrt.kbhit():
+                return self._read_key(self.D)
+            time.sleep(self._ANIM_FRAME_SECONDS)
+            self._anim_tick += self._ANIM_TICK_STEP
+            return b''
+        ready, _, _ = select.select([self.D], [], [], self._ANIM_FRAME_SECONDS)
+        if ready:
+            return self._read_key(self.D)
+        self._anim_tick += self._ANIM_TICK_STEP
+        return b''
 
 
     def draw(self,size_max=20):
@@ -859,7 +1337,7 @@ class GRmenu():
         finally:
             if not sys.platform == "win32":
                 termios.tcsetattr(self.D, termios.TCSAFLUSH, self.DF)
-                sys.stdout.write("\x1b[?1000l")  # desactiva reporte de mouse
+                sys.stdout.write("\x1b[?1003l\x1b[?1000l")  # desactiva reporte de mouse
             sys.stdout.write("\x1b[?25h")  # muestra de nuevo el cursor
             sys.stdout.flush()
 
@@ -878,10 +1356,17 @@ class GRmenu():
         sys.stdout.flush()
 
     def _render_option_panel(self, node, size_max, style, focused):
-        """Devuelve (ancho, lineas ya coloreadas) del panel de opciones de
-        `node` (self o un GRSubMenu). Cada linea ya incluye sus dos bordes
-        verticales; no incluye el padding horizontal externo (eso lo pone
-        quien componga varios paneles uno al lado del otro en _draw_loop).
+        """Devuelve (ancho, lineas ya coloreadas, targets) del panel de
+        opciones de `node` (self o un GRSubMenu). Cada linea ya incluye
+        sus dos bordes verticales; no incluye el padding horizontal
+        externo (eso lo pone quien componga varios paneles uno al lado
+        del otro en _draw_loop).
+
+        `targets` es una lista paralela a `lines`: `targets[i]` es el
+        indice (en `node.functions`) de la opcion que dibuja `lines[i]`,
+        o `None` si esa linea no es clickeable (borde, titulo, buscador,
+        etc). La usa `_draw_loop` para saber que opcion cae bajo un click
+        del mouse.
 
         `focused` indica si ESTE panel es el que recibe flechas/Enter en
         este momento: solo puede haber un foco a la vez en toda la
@@ -918,61 +1403,86 @@ class GRmenu():
         visible = [(i, names[i]) for i in window]
 
         lines = []
+        targets = []
         if box_border:
             b = box_border
             line = self._hline(b["h"], width - 2)
-            v = self._colorize(b["v"], bc)
-            lines.append(self._colorize(b["tl"] + line + b["tr"], bc))
+            # v_right lleva `col=width - 1` para que su fase de animacion
+            # corresponda a su columna REAL (la ultima de la fila) y no a
+            # la 0 -- sin esto, el borde derecho quedaba siempre pintado
+            # igual que el izquierdo (ver _colorize_anim).
+            v_left = self._colorize_anim(b["v"], bc)
+            v_right = self._colorize_anim(b["v"], bc, col=width - 1)
+            lines.append(self._colorize_anim(b["tl"] + line + b["tr"], bc, row=len(lines)))
+            targets.append(None)
             if title:
-                lines.append(f"{v} {self._colorize(title.center(width - 4), tc)} {v}")
-                lines.append(self._colorize(b["v"] + line + b["v"], bc))
+                lines.append(f"{v_left} {self._colorize_anim(title.center(width - 4), tc, row=len(lines))} {v_right}")
+                targets.append(None)
+                lines.append(self._colorize_anim(b["v"] + line + b["v"], bc, row=len(lines)))
+                targets.append(None)
             if searching:
-                lines.append(f"{v} {self._colorize(search_row.ljust(width - 4), dc)} {v}")
-                lines.append(self._colorize(b["v"] + line + b["v"], bc))
+                lines.append(f"{v_left} {self._colorize(search_row.ljust(width - 4), dc)} {v_right}")
+                targets.append(None)
+                lines.append(self._colorize_anim(b["v"] + line + b["v"], bc, row=len(lines)))
+                targets.append(None)
             if not visible:
-                lines.append(f"{v} {self._colorize('(sin coincidencias)'.ljust(width - 4), oc)} {v}")
+                lines.append(f"{v_left} {self._colorize('(sin coincidencias)'.ljust(width - 4), oc)} {v_right}")
+                targets.append(None)
             for i, name in visible:
                 if i in marked:
                     color = (fc if focused else oc) if node.index == i else oc
                     option = self._colorize(f"[x] {name.ljust(width - 8)}", color)
-                    lines.append(f"{v} {option} {v}")
+                    lines.append(f"{v_left} {option} {v_right}")
                 elif node.index == i:
                     option = self._colorize(f">{name.ljust(width - 6)}", fc if focused else oc)
-                    lines.append(f"{v}  {option} {v}")
+                    lines.append(f"{v_left}  {option} {v_right}")
                 else:
                     option = self._colorize(f"> {name.ljust(width - 6)}", oc)
-                    lines.append(f"{v} {option} {v}")
-            lines.append(self._colorize(b["bl"] + line + b["br"], bc))
+                    lines.append(f"{v_left} {option} {v_right}")
+                targets.append(i)
+            lines.append(self._colorize_anim(b["bl"] + line + b["br"], bc, row=len(lines)))
+            targets.append(None)
         else:
             symbol = "#"
             border = self._colorize(symbol, bc)
             lines.append(self._colorize(symbol * width, bc))
+            targets.append(None)
             if title:
                 lines.append(f"{border} {self._colorize(title.center(width - 4), tc)} {border}")
+                targets.append(None)
                 lines.append(self._colorize(symbol * width, bc))
+                targets.append(None)
             if searching:
                 lines.append(f"{border} {self._colorize(search_row.ljust(width - 4), dc)} {border}")
+                targets.append(None)
                 lines.append(self._colorize(symbol * width, bc))
+                targets.append(None)
             if not visible:
                 lines.append(f"{border} {self._colorize('(sin coincidencias)'.ljust(width - 4), oc)} {border}")
+                targets.append(None)
             for i, name in visible:
                 color = (fc if focused else oc) if node.index == i else oc
                 content = f"[x] {name}" if i in marked else name
                 lines.append(f"{border} {self._colorize(content.ljust(width - 4), color)} {border}")
+                targets.append(i)
             lines.append(self._colorize(symbol * width, bc))
+            targets.append(None)
 
         if truncated:
             pos = filtered.index(node.index) + 1 if node.index in filtered else 0
             lines.append(self._colorize(f"{pos} de {total}".rjust(width), dc))
+            targets.append(None)
 
         if marked:
             plural = "s" if len(marked) != 1 else ""
             lines.append(self._colorize(f"{len(marked)} marcada{plural}".rjust(width), dc))
+            targets.append(None)
 
         desc = self._description(node.functions[node.index])
         if desc:
             lines.append(self._colorize(desc.rjust(width), dc))
-        return width, lines
+            targets.append(None)
+        return width, lines, targets
 
     def _render_source_panel(self, node, size_max, style, cols):
         """Igual que `_render_option_panel`, pero en vez de la lista de
@@ -989,13 +1499,14 @@ class GRmenu():
         if box_border:
             b = box_border
             line = self._hline(b["h"], width - 2)
-            v = self._colorize(b["v"], bc)
-            lines.append(self._colorize(b["tl"] + line + b["tr"], bc))
-            lines.append(f"{v} {self._colorize(title.center(width - 4), tc)} {v}")
-            lines.append(self._colorize(b["v"] + line + b["v"], bc))
+            v_left = self._colorize_anim(b["v"], bc)
+            v_right = self._colorize_anim(b["v"], bc, col=width - 1)
+            lines.append(self._colorize_anim(b["tl"] + line + b["tr"], bc, row=len(lines)))
+            lines.append(f"{v_left} {self._colorize_anim(title.center(width - 4), tc, row=len(lines))} {v_right}")
+            lines.append(self._colorize_anim(b["v"] + line + b["v"], bc, row=len(lines)))
             for ln in src:
-                lines.append(f"{v} {self._colorize(ln[:width - 4].ljust(width - 4), oc)} {v}")
-            lines.append(self._colorize(b["bl"] + line + b["br"], bc))
+                lines.append(f"{v_left} {self._colorize(ln[:width - 4].ljust(width - 4), oc)} {v_right}")
+            lines.append(self._colorize_anim(b["bl"] + line + b["br"], bc, row=len(lines)))
         else:
             symbol = "#"
             border = self._colorize(symbol, bc)
@@ -1006,14 +1517,62 @@ class GRmenu():
                 lines.append(f"{border} {self._colorize(ln[:width - 4].ljust(width - 4), oc)} {border}")
             lines.append(self._colorize(symbol * width, bc))
         lines.append(self._colorize("'t' para volver al menu".rjust(width), self.SetStyle.description))
-        return width, lines
+        return width, lines, [None] * len(lines)
 
     def _draw_loop(self, size_max):
         # tty.setraw() apaga ISIG, asi que Ctrl+C no llega como SIGINT sino
         # como el byte \x03 leido normalmente: hay que salir a mano igual
         # que con "q", si no el modo raw queda pegado hasta romper con kill.
+        first_key = True
         while True:
-            key = self._read_key(self.D)
+            # La primera tecla es la que saca la pantalla de bienvenida
+            # (`welcome()`, incluida la imagen si hay): tiene que esperar
+            # una tecla/click/rueda DE VERDAD, sin importar `animate` --
+            # si no, con animate activo el primer "tick" ocioso (a los
+            # ~35ms, sin que el usuario toque nada) ya dispara el limpiar
+            # pantalla + dibujar de mas abajo, y la bienvenida desaparece
+            # casi al instante (no llega a verse). De la segunda vuelta
+            # en adelante (ya con el menu real dibujado) si queremos que
+            # los ticks ociosos redibujen, para que la animacion se vea
+            # avanzar aunque no se toque nada.
+            key = self._read_key(self.D) if first_key else self._read_key_or_tick()
+            first_key = False
+
+            if key == b'\x1b[CLICK' and self._last_click and not self._preview:
+                # Resuelve el click contra lo que se dibujo en el frame
+                # ANTERIOR (que es lo que el usuario tenia en pantalla al
+                # clickear). Si cae sobre una opcion de un panel que sigue
+                # siendo parte de self._chain, la selecciona y lo trata
+                # como si hubiera apretado Enter con foco ahi (misma
+                # ejecucion/entrada a submenu, mismas reglas de marcado).
+                col, row = self._last_click
+                for r0, r1, c0, c1, node_c, idx_c in self._click_regions:
+                    if r0 <= row < r1 and c0 <= col < c1 and node_c in self._chain:
+                        node_c.index = idx_c
+                        self._focus = self._chain.index(node_c)
+                        key = b'\r'
+                        break
+            elif key == b'\x1b[HOVER' and self._last_hover and not self._preview:
+                # Mismo hit-test que el click, pero solo mueve la
+                # seleccion (resalta la opcion bajo el cursor), sin
+                # ejecutar nada -- como pasar el mouse por arriba en un
+                # menu de escritorio. Si el hover no cambia nada (ya
+                # estaba resaltada esa opcion, o cayo fuera de cualquier
+                # panel), `continue` se salta el resto de esta vuelta
+                # entera para no limpiar/redibujar la pantalla por gusto
+                # (el mouse manda MUCHOS eventos de movimiento seguidos).
+                col, row = self._last_hover
+                changed = False
+                for r0, r1, c0, c1, node_c, idx_c in self._click_regions:
+                    if r0 <= row < r1 and c0 <= col < c1 and node_c in self._chain:
+                        if node_c.index != idx_c or self._chain[self._focus] is not node_c:
+                            node_c.index = idx_c
+                            self._focus = self._chain.index(node_c)
+                            changed = True
+                        break
+                if not changed:
+                    continue
+
             focus_node = self._chain[self._focus]
             searching = focus_node.search_active
 
@@ -1100,17 +1659,33 @@ class GRmenu():
                 style = getattr(node, "style", None) or style
                 is_deepest = depth == len(self._chain) - 1
                 if is_deepest and self._preview:
-                    panels.append(self._render_source_panel(node, size_max, style, cols))
+                    panels.append((node,) + self._render_source_panel(node, size_max, style, cols))
                 else:
-                    panels.append(self._render_option_panel(node, size_max, style, depth == self._focus))
+                    panels.append((node,) + self._render_option_panel(node, size_max, style, depth == self._focus))
             if not self._preview and len(self._chain) < GRSubMenu.MAX_DEPTH:
                 last = self._chain[-1]
                 lookahead = last.functions[last.index]
                 if isinstance(lookahead, GRSubMenu):
                     lookahead_style = getattr(lookahead, "style", None) or style
-                    panels.append(self._render_option_panel(lookahead, size_max, lookahead_style, focused=False))
+                    panels.append((lookahead,) + self._render_option_panel(lookahead, size_max, lookahead_style, focused=False))
 
-            total_w = sum(w for w, _ in panels) + 2 * (len(panels) - 1)
+            # Ancho de solo los paneles "entrados" (self._chain), sin el
+            # preview automatico de la fila resaltada (si la hay). Es lo
+            # que se usa para centrar: si se centrara contra el ancho
+            # TOTAL (incluido el preview), el panel principal se correria
+            # unos caracteres cada vez que el preview aparece/desaparece
+            # (por ejemplo al pasar el mouse o las flechas sobre una fila
+            # que es un GRSubMenu), lo que hace que el mouse "se sienta
+            # raro" -- el click/hover del frame siguiente cae calculado
+            # contra una posicion que ya no es la que el usuario ve. Con
+            # chain_w el panel principal queda fijo; el preview solo se
+            # agrega a la derecha, sin empujar nada mas.
+            chain_w = sum(w for node_p, w, _, _ in panels if node_p in self._chain) + 2 * (len(self._chain) - 1)
+
+            # Cuenta las filas que van imprimiendo banner/subtitulo, para
+            # saber en que fila ABSOLUTA de la terminal arrancan los
+            # paneles (lo necesita el hit-test de click, mas abajo).
+            printed_rows = 0
 
             banner_w = 0
             if self.banner:
@@ -1119,36 +1694,60 @@ class GRmenu():
                 if rows:
                     banner_w = max(len(r) for r in rows) + 6
                     bline = self._hline(bb["h"], banner_w - 2)
-                    print(self._colorize(bb["tl"] + bline + bb["tr"], self.SetStyle.banner))
-                    for r in rows:
-                        print(self._colorize(f"{bb['v']}  {r}  {bb['v']}", self.SetStyle.banner))
-                    print(self._colorize(bb["bl"] + bline + bb["br"], self.SetStyle.banner))
+                    print(self._colorize_anim(bb["tl"] + bline + bb["tr"], self.SetStyle.banner, row=0))
+                    for b_row, r in enumerate(rows, start=1):
+                        print(self._colorize_anim(f"{bb['v']}  {r}  {bb['v']}", self.SetStyle.banner, row=b_row))
+                    print(self._colorize_anim(bb["bl"] + bline + bb["br"], self.SetStyle.banner, row=len(rows) + 1))
+                    printed_rows += len(rows) + 2
                 else:
                     btext = self.banner.strip()
                     banner_w = min(len(btext) + 6, cols - 2)
                     bline = self._hline(bb["h"], banner_w - 2)
-                    print(self._colorize(bb["tl"] + bline + bb["tr"], self.SetStyle.banner))
-                    print(self._colorize(f"{bb['v']} {btext.center(banner_w - 4)} {bb['v']}", self.SetStyle.banner))
-                    print(self._colorize(bb["bl"] + bline + bb["br"], self.SetStyle.banner))
+                    print(self._colorize_anim(bb["tl"] + bline + bb["tr"], self.SetStyle.banner, row=0))
+                    print(self._colorize_anim(f"{bb['v']} {btext.center(banner_w - 4)} {bb['v']}", self.SetStyle.banner, row=1))
+                    print(self._colorize_anim(bb["bl"] + bline + bb["br"], self.SetStyle.banner, row=2))
+                    printed_rows += 3
                 print()
+                printed_rows += 1
 
-            ref = banner_w or total_w
+            ref = banner_w or chain_w
 
             if self.subtitle:
                 div_w = min(ref, cols - 2)
                 if self.divider:
                     print(self._colorize("─" * div_w, self.SetStyle.divider))
-                for sub_line in self.subtitle.splitlines():
+                    printed_rows += 1
+                sub_lines = self.subtitle.splitlines()
+                for sub_line in sub_lines:
                     print(self._colorize(sub_line.center(div_w) if self.center else sub_line, self.SetStyle.subtitle))
+                printed_rows += len(sub_lines)
                 if self.divider:
                     print(self._colorize("─" * div_w, self.SetStyle.divider))
+                    printed_rows += 1
                 print()
+                printed_rows += 1
 
-            outer_pad = " " * ((ref - total_w) // 2) if self.center and ref > total_w else ""
-            height = max(len(lines) for _, lines in panels)
+            outer_pad = " " * ((ref - chain_w) // 2) if self.center and ref > chain_w else ""
+            height = max(len(lines) for _, _, lines, _ in panels)
+
+            # Columna (1-based, terminal) donde arranca cada panel.
+            panel_cols = []
+            col_cursor = len(outer_pad) + 1
+            for _, w, _, _ in panels:
+                panel_cols.append(col_cursor)
+                col_cursor += w + 2  # +2 = separador "  " entre paneles
+
+            click_regions = []
             for row_i in range(height):
-                row = [lines[row_i] if row_i < len(lines) else " " * w for w, lines in panels]
-                print(outer_pad + "  ".join(row))
+                row_texts = []
+                for (node_p, w, lines, targets), col_start in zip(panels, panel_cols):
+                    row_texts.append(lines[row_i] if row_i < len(lines) else " " * w)
+                    target = targets[row_i] if row_i < len(targets) else None
+                    if target is not None:
+                        abs_row = printed_rows + row_i + 1
+                        click_regions.append((abs_row, abs_row + 1, col_start, col_start + w, node_p, target))
+                print(outer_pad + "  ".join(row_texts))
+            self._click_regions = click_regions
 
             if key == b'\r' and not self._preview and not isinstance(focus_row, GRSubMenu):
                 # Si la fila resaltada es un GRSubMenu, Enter ya la entro
@@ -1162,7 +1761,7 @@ class GRmenu():
                 if to_run:
                     if not sys.platform == "win32":
                         termios.tcsetattr(self.D, termios.TCSAFLUSH, self.DF)
-                        sys.stdout.write("\x1b[?1000l")
+                        sys.stdout.write("\x1b[?1003l\x1b[?1000l")
                     sys.stdout.write("\x1b[?25h")  # muestra el cursor antes de ejecutar
                     sys.stdout.flush()
                     print(self._clear_seq)
@@ -1321,6 +1920,61 @@ class GRmenu():
         print(f"Ejecutalo con: python {dest}")
 
     @staticmethod
+    def _export_config_from_file(target) -> None:
+        """Carga `target` (un script .py) y exporta a `.gr` la configuracion
+        global (`GRmenu.SetStyle`) que haya quedado seteada, SIN arrancar
+        ningun menu interactivo: corre el script completo tal cual (asi se
+        ejecutan sus `SetStyle.Border(...)`, etc.), pero con `GRmenu.draw`
+        reemplazado por un no-op mientras dura la carga, para que no se
+        quede esperando teclas.
+
+        Restaura la terminal (modo raw, cursor, reporte de mouse) al
+        terminar, incluso si `target` construyo un `GRmenu(...)` (eso ya
+        pone la terminal en modo crudo en `__init__`, antes de llegar a
+        `draw`).
+
+        Nota tecnica: cuando esto corre via `python -m GRmenu`, ESTE
+        archivo se ejecuta como `sys.modules["__main__"]`, no como
+        `sys.modules["GRmenu"]` -- asi que un `from GRmenu import GRmenu`
+        dentro de `target` reimportaria el archivo de cero y definiria
+        una clase `GRmenu` SEPARADA (con su propio `SetStyle`, sin el
+        `draw` parcheado). Para que `target` use esta MISMA clase, se
+        alias `sys.modules["GRmenu"]` a este modulo antes de cargarlo.
+        """
+        if not os.path.exists(target):
+            print(GRmenu._colorize(f"No existe {target!r}.", {"color": "red", "level": 2}))
+            return
+
+        original_draw = GRmenu.draw
+        GRmenu.draw = lambda self, *a, **kw: None
+        this_module = sys.modules[__name__]
+        had_grmenu_module = "GRmenu" in sys.modules
+        original_grmenu_module = sys.modules.get("GRmenu")
+        sys.modules["GRmenu"] = this_module
+        saved_term = None
+        if sys.platform != "win32" and sys.stdin.isatty():
+            saved_term = termios.tcgetattr(sys.stdin.fileno())
+        original_argv = sys.argv
+        try:
+            sys.argv = [target]
+            runpy.run_path(target, run_name="__main__")
+        finally:
+            sys.argv = original_argv
+            GRmenu.draw = original_draw
+            if had_grmenu_module:
+                sys.modules["GRmenu"] = original_grmenu_module
+            else:
+                del sys.modules["GRmenu"]
+            if saved_term is not None:
+                termios.tcsetattr(sys.stdin.fileno(), termios.TCSAFLUSH, saved_term)
+            sys.stdout.write("\x1b[?25h\x1b[?1003l\x1b[?1000l")
+            sys.stdout.flush()
+
+        out = os.path.splitext(os.path.abspath(target))[0] + ".gr"
+        GRmenu.ExportConfig(out)
+        print(GRmenu._colorize(f"Configuracion de {target} exportada a {out}", {"color": "green", "level": 2}))
+
+    @staticmethod
     def _cli() -> None:
         parser = argparse.ArgumentParser(
             prog="GRmenu",
@@ -1333,9 +1987,12 @@ class GRmenu():
         parser.add_argument("-b", "--Banner", action="store_true", help="Muestra las fuentes del banner (font, 1 al 10) y sus parametros.")
         parser.add_argument("-d", "--Divider", action="store_true", help="Explica el parametro divider (lineas divisorias del banner/subtitulo).")
         parser.add_argument("-e", "--Example", action="store_true", help="Genera example.py en el directorio actual con un ejemplo completo de la libreria.")
+        parser.add_argument("-ex", "--Export", metavar="archivo.py", help="Carga <archivo.py> sin arrancar su menu interactivo (menu.draw() no hace nada) y exporta la configuracion global (GRmenu.SetStyle) que haya quedado seteada a un .gr al lado de <archivo.py>.")
         args = parser.parse_args()
 
-        if args.Example:
+        if args.Export:
+            GRmenu._export_config_from_file(args.Export)
+        elif args.Example:
             GRmenu._generate_example()
         elif args.All:
             GRmenu._print_header("GRMENU", "Guia y Referencia Rapida\nNavegacion interactiva en terminal TTY")
