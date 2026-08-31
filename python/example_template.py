@@ -219,5 +219,6 @@ if __name__ == "__main__":
         center=True,                            # Centrado simetrico
         max_show_options=10,                    # Ventana de opciones visibles; con 11 opciones, scrollea
         searchable=True,                        # "/" filtra las opciones por nombre a medida que escribis
+        animate="rgb"
     )
     menu.draw()
