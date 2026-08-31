@@ -9,14 +9,16 @@ Menus interactivos por teclado, seleccion multiple con casillas de verificacion,
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-blue)](https://github.com/JoseEduardoGR/GRmenu)
 [![Ruby](https://img.shields.io/badge/ruby-%3E%3D%202.6-red.svg)](https://www.ruby-lang.org)
 
+![Demo de GRmenu en Ruby](assets/demo.png)
+
 ---
 
 ## Tabla de Contenidos
 
-1. [Por que elegir GRmenu?](#-por-que-elegir-grmenu)
-2. [Instalacion y Requisitos](#-instalacion-y-requisitos)
-3. [Inicio Rapido en 10 Segundos](#-inicio-rapido-en-10-segundos)
-4. [Guia de Componentes y Caracteristicas](#-guia-de-componentes-y-caracteristicas)
+1. [Por que elegir GRmenu?](#por-que-elegir-grmenu)
+2. [Instalacion y Requisitos](#instalacion-y-requisitos)
+3. [Inicio Rapido en 10 Segundos](#inicio-rapido-en-10-segundos)
+4. [Guia de Componentes y Caracteristicas](#guia-de-componentes-y-caracteristicas)
    - [1. Menu Interactivo Principal (Buscador, Grid 2D y Paginacion)](#1-menu-interactivo-principal)
    - [2. Seleccion Multiple con Checkboxes (GRmenu.checkbox)](#2-seleccion-multiple-con-checkboxes)
    - [3. Control Deslizante Interactivo (GRmenu.slider)](#3-control-deslizante-interactivo)
@@ -26,12 +28,12 @@ Menus interactivos por teclado, seleccion multiple con casillas de verificacion,
    - [7. Barra de Progreso y Spinner de Carga](#7-barra-de-progreso-y-spinner-de-carga)
    - [8. Banners 3D y Lineas Divisorias](#8-banners-3d-y-lineas-divisorias)
    - [9. Modulo Independiente de Color (Color / C)](#9-modulo-independiente-de-color)
-5. [Catalogo Visual de Fuentes 3D (1 al 10)](#-catalogo-visual-de-fuentes-3d)
-6. [Catalogo Visual de Marcos y Bordes (1 al 20)](#-catalogo-visual-de-marcos-y-bordes)
-7. [Referencia Exhaustiva de la API](#-referencia-exhaustiva-de-la-api)
-8. [Mapa de Controles y Teclado](#-mapa-de-controles-y-teclado)
-9. [Recetas y Casos de Uso del Mundo Real](#-recetas-y-casos-de-uso-del-mundo-real)
-10. [Licencia](#-licencia)
+5. [Ejemplo Completo en Ruby (e.rb)](#ejemplo-completo-en-ruby-erb)
+6. [Catalogo Visual de Fuentes 3D (1 al 10)](#catalogo-visual-de-fuentes-3d)
+7. [Catalogo Visual de Marcos y Bordes (1 al 20)](#catalogo-visual-de-marcos-y-bordes)
+8. [Referencia Exhaustiva de la API](#referencia-exhaustiva-de-la-api)
+9. [Mapa de Controles y Teclado](#mapa-de-controles-y-teclado)
+10. [Licencia](#licencia)
 
 ---
 
@@ -255,7 +257,7 @@ Decodifica y renderiza cualquier formato de imagen (PNG, JPEG, JPG, WEBP, GIF, B
 
 ```ruby
 # Renderiza una imagen centrada dentro de un marco estilizado
-GRmenu.image("fondo.jpg", width: 60, color: "rgb", style: 3)
+GRmenu.image("wallpaper.jpg", width: 60, color: "rgb", style: 3)
 ```
 
 #### Como Cabecera Superior en un Menu:
@@ -341,7 +343,6 @@ end
 
 ```ruby
 resultado = GRmenu.spinner("Conectando con el cluster remoto...", color: "rgb") do
-  # Simula tarea pesada
   sleep 1.5
   "Conexion Establecida"
 end
@@ -364,8 +365,6 @@ GRmenu.div(60, "rgb", 1, "═")
 ---
 
 ### 9. Modulo Independiente de Color
-
-El modulo `Color` (o su alias `C`) permite pintar cadenas de texto directamente con secuencias ANSI y TrueColor:
 
 ```ruby
 # Modo Arcoiris RGB Dinamico
@@ -391,6 +390,344 @@ puts Color.y("Amarillo")
 puts Color.w("Blanco")
 puts Color.gr("Gris")
 ```
+
+---
+
+## Ejemplo Completo en Ruby (`e.rb`)
+
+A continuacion se muestra la implementacion completa de [`ruby/e.rb`](e.rb) que incluye todos los componentes interactivos de la libreria:
+
+```ruby
+# frozen_string_literal: true
+
+require "GRmenu"
+
+# 1. Definicion de acciones del sistema
+def iniciar_servidor
+  GRmenu.clear_screen
+  puts Color.bright_green("-> Servidor iniciado correctamente en http://localhost:3000")
+  puts Color.gray("   Worker PID: #{Process.pid} | Entorno: Produccion | Hilos: 16")
+  GRmenu.continue
+end
+
+def crear_respaldo
+  GRmenu.clear_screen
+  puts Color.bright_cyan("-> Creando respaldo completo de la base de datos...")
+  puts Color.bright_white("   Destino: /var/backups/db_backup_#{Time.now.strftime('%Y%m%d_%H%M%S')}.sql.gz")
+  GRmenu.continue
+end
+
+def ver_metricas
+  GRmenu.clear_screen
+  puts Color.rgb("=== Metricas del Servidor en Tiempo Real ===")
+  puts Color.bright_green("   CPU:           14% (8 Nucleos activos)")
+  puts Color.bright_cyan("   Memoria RAM:   4.8 GB / 16.0 GB (30% en uso)")
+  puts Color.bright_yellow("   Almacenamiento: 42.1 GB / 250.0 GB (17%)")
+  puts Color.bright_magenta("   Uptime:        18 dias, 4 horas, 22 minutos")
+  GRmenu.continue
+end
+
+def prueba_banner_rapido
+  GRmenu.clear_screen
+  GRmenu.banner("OK", 0, color: "rgb", style: 3, font: 1)
+  GRmenu.div(46, "rgb", 1, "═")
+  puts Color.bright_green("   Banner ASCII 3D y divisor renderizados en Chroma RGB.")
+  GRmenu.div(46, "rgb", 1, "═")
+  GRmenu.continue
+end
+
+def ver_ayuda_completa
+  GRmenu.clear_screen
+  GRmenu.help
+  GRmenu.continue
+end
+
+def salir
+  GRmenu.clear_screen
+  puts Color.bright_yellow("-> Sesion finalizada con exito. Hasta pronto!")
+  exit(0)
+end
+
+# 2. Demos de Carga, Paginacion y Modales
+def demo_barra_progreso
+  GRmenu.clear_screen
+  GRmenu.progress(10, title: "Descargando Paquetes de Actualizacion", color: "rgb", style: 3) do |bar|
+    10.times do |i|
+      sleep 0.1
+      bar.advance(1, status: "Paquete #{i + 1} de 10 completado...")
+    end
+  end
+  puts Color.bright_green("\n-> Descarga e instalacion completadas al 100%!")
+  GRmenu.continue
+end
+
+def demo_spinner
+  GRmenu.clear_screen
+  GRmenu.spinner("Conectando con el cluster PostgreSQL en la nube...", color: "rgb") do
+    sleep 1.4
+  end
+  puts Color.bright_green("\n-> Conexion establecida con exito (Latencia: 1.2 ms).")
+  GRmenu.continue
+end
+
+def demo_paginacion
+  GRmenu.clear_screen
+  opciones_largas = (1..20).map do |n|
+    ["Elemento del Sistema ##{n}", -> {
+      GRmenu.clear_screen
+      puts Color.bright_cyan("-> Has seleccionado el Elemento ##{n}")
+      GRmenu.continue
+    }, "Configuracion y detalles avanzados del elemento ##{n}"]
+  end
+
+  sub = GRmenu.new(
+    opciones_largas,
+    title: "Submenu Paginado (20 Elementos)",
+    subtitle: "Usa ↑ / ↓ para ver el auto-scroll interactivo",
+    style: 7,
+    page_size: 6
+  )
+  sub.set_style.focus("rgb")
+  sub.set_style.border("rgb")
+  sub.draw(size_max: 42)
+end
+
+def demo_buscador_en_vivo
+  GRmenu.clear_screen
+  servicios = [
+    ["Servidor HTTP Nginx",        -> { puts Color.bright_green("-> Nginx Reiniciado"); GRmenu.continue }, "Proxy inverso HTTP principal"],
+    ["Servidor Base PostgreSQL",   -> { puts Color.bright_green("-> PostgreSQL Activo"); GRmenu.continue }, "Motor de BD relacional principal"],
+    ["Servicio Cache Redis",       -> { puts Color.bright_green("-> Redis Operativo"); GRmenu.continue }, "Almacen en memoria ultrarrapido"],
+    ["Servicio de Colas Sidekiq",  -> { puts Color.bright_green("-> Workers listos"); GRmenu.continue }, "Procesamiento en segundo plano"],
+    ["Microservicio de Pagos",     -> { puts Color.bright_green("-> Gateway Stripe OK"); GRmenu.continue }, "API de cobros y facturacion"],
+    ["Monitor de Logs Elastic",    -> { puts Color.bright_green("-> ElasticSearch activo"); GRmenu.continue }, "Busqueda y agregacion de logs"],
+    ["Servicio de Emails SMTP",    -> { puts Color.bright_green("-> Mailer conectado"); GRmenu.continue }, "Envio de notificaciones transaccionales"]
+  ]
+
+  sub_search = GRmenu.new(
+    servicios,
+    title: "Buscador Interactivo en Vivo",
+    subtitle: "Escribe letras para filtrar al instante (Backspace borra)",
+    search: true,
+    style: 3
+  )
+  sub_search.set_style.banner("rgb")
+  sub_search.set_style.focus("rgb")
+  sub_search.set_style.border("rgb")
+  sub_search.draw(size_max: 48)
+end
+
+def demo_cuadricula_columnas
+  GRmenu.clear_screen
+  panel_acciones = (1..12).map do |i|
+    ["Nodo ##{i}", -> {
+      GRmenu.clear_screen
+      puts Color.bright_cyan("-> Accediste al Nodo ##{i}")
+      GRmenu.continue
+    }, "Panel de control y metricas del cluster #{i}"]
+  end
+
+  sub_grid = GRmenu.new(
+    panel_acciones,
+    title: "Panel Cuadricula 2D (2 Columnas)",
+    subtitle: "Usa las 4 flechas (↑, ↓, ←, →) para moverte en 2D",
+    columns: 2,
+    style: 7,
+    page_size: 4
+  )
+  sub_grid.set_style.focus("rgb")
+  sub_grid.set_style.border("rgb")
+  sub_grid.draw(size_max: 48)
+end
+
+def demo_modales_confirm_input
+  GRmenu.clear_screen
+  
+  # Modal 1: Entrada de texto interactiva
+  nombre = GRmenu.input("Ingresa tu nombre de usuario administrador:", default: "admin", color: "rgb", style: 3)
+  
+  # Modal 2: Confirmacion interactiva Si / No con flechas
+  confirmado = GRmenu.confirm("Deseas activar privilegios de superusuario para '#{nombre}'?", default: true, color: "rgb", style: 3)
+  
+  GRmenu.clear_screen
+  if confirmado
+    puts Color.bright_green("-> Acceso concedido con exito para el usuario '#{nombre}'!")
+  else
+    puts Color.bright_red("-> Operacion cancelada por el usuario.")
+  end
+  GRmenu.continue
+end
+
+def demo_seleccion_multiple
+  GRmenu.clear_screen
+  paquetes = [
+    ["Servidor Nginx Web", true, "Proxy inverso de alto rendimiento"],
+    ["Motor PostgreSQL 16", true, "Base de datos relacional robusta"],
+    ["Cache Redis 7.2", false, "Almacen clave-valor en memoria RAM"],
+    ["Monitor Prometheus", false, "Recoleccion de metricas del sistema"],
+    ["Visualizador Grafana", true, "Dashboards de analitica en tiempo real"],
+    ["Servicio Docker Engine", true, "Contenedores y virtualizacion ligera"],
+    ["Firewall UFW", false, "Reglas de seguridad y filtrado de red"]
+  ]
+
+  seleccionados = GRmenu.checkbox(
+    paquetes,
+    title: "Instalador de Paquetes (Multi-Select)",
+    subtitle: "Espacio: Marcar | a: Todos | n: Ninguno | i: Invertir | Enter: Confirmar",
+    color: "rgb",
+    style: 3
+  )
+
+  GRmenu.clear_screen
+  if seleccionados.empty?
+    puts Color.bright_yellow("-> No seleccionaste ningun paquete para instalar.")
+  else
+    puts Color.bright_green("-> Paquetes seleccionados para instalacion (#{seleccionados.length}):")
+    seleccionados.each_with_index do |p, i|
+      nombre = p.is_a?(Array) ? p[0] : p
+      puts Color.bright_cyan("   #{i + 1}. [X] #{nombre}")
+    end
+  end
+  GRmenu.continue
+end
+
+def demo_slider_interactivo
+  GRmenu.clear_screen
+  ram = GRmenu.slider(
+    "Asignar Memoria RAM para Servidor",
+    min: 1,
+    max: 64,
+    step: 1,
+    default: 16,
+    unit: "GB",
+    color: "rgb",
+    style: 3
+  )
+
+  GRmenu.clear_screen
+  puts Color.bright_green("-> Has configurado exitosamente #{ram} GB de memoria RAM asignada.")
+  GRmenu.continue
+end
+
+def demo_imagen_terminal
+  GRmenu.clear_screen
+  img_path = "assets/imagen_demo.png" # Reemplaza con la ruta de tu imagen
+  unless File.exist?(img_path)
+    puts Color.bright_yellow("-> Coloca una imagen en '#{img_path}' para probar esta funcion.")
+    GRmenu.continue
+    return
+  end
+
+  puts Color.rgb("=== 1. Renderizado Directo con GRmenu.image ===")
+  GRmenu.image(img_path, width: 60, color: "rgb", style: 3)
+  puts Color.bright_green("\n-> Imagen PNG renderizada con micro-pixeles ANSI TrueColor de 24 bits.")
+  GRmenu.continue("Presiona una tecla para ver el submenu con cabecera de imagen...")
+
+  sub = GRmenu.new(
+    [
+      ["Escanear Puertos",         -> { puts Color.bright_green("-> Escaneando..."); GRmenu.continue }, "Escaneo rapido de red"],
+      ["Lanzar Consola",           -> { puts Color.bright_green("-> Iniciando consola..."); GRmenu.continue }, "Herramienta interactiva"],
+      ["Capturar Paquetes",        -> { puts Color.bright_green("-> Sniffer activo..."); GRmenu.continue }, "Analisis de trafico de red"],
+      ["Volver al Menu Principal", -> { puts Color.bright_yellow("-> Volviendo..."); GRmenu.continue }]
+    ],
+    image: img_path,
+    image_width: 44,
+    title: "Toolset de Seguridad",
+    subtitle: "Suite de Herramientas\nRenderizado de Imagen en Terminal",
+    style: 3,
+    banner_style: 3
+  )
+  sub.set_style.focus("rgb")
+  sub.set_style.border("rgb")
+  sub.draw(size_max: 48)
+end
+
+def demo_imagen_fondo_jpeg
+  GRmenu.clear_screen
+  img_path = "assets/wallpaper.jpeg" # Reemplaza con la ruta de tu imagen
+  unless File.exist?(img_path)
+    puts Color.bright_yellow("-> Coloca un fondo en '#{img_path}' para probar esta funcion.")
+    GRmenu.continue
+    return
+  end
+
+  puts Color.rgb("=== 1. Renderizado Directo de JPEG con GRmenu.image ===")
+  GRmenu.image(img_path, width: 80, color: "rgb", style: 3)
+  puts Color.bright_green("\n-> Imagen JPEG decodificada y renderizada en TrueColor de 24 bits.")
+  GRmenu.continue("Presiona una tecla para ver el submenu con fondo JPEG...")
+
+  sub = GRmenu.new(
+    [
+      ["Ver Informacion de Imagen", -> { puts Color.bright_green("-> Resolucion: 1344x768 (JPEG)"); GRmenu.continue }, "Detalles tecnicos del archivo"],
+      ["Aplicar Filtro de Color",   -> { puts Color.bright_cyan("-> Filtro aplicado correctamente"); GRmenu.continue }, "Ajustes de visualizacion"],
+      ["Exportar a Terminal",      -> { puts Color.bright_green("-> Exportacion ANSI completada"); GRmenu.continue }, "Generar archivo de texto ANSI"],
+      ["Volver al Menu Principal",  -> { puts Color.bright_yellow("-> Volviendo..."); GRmenu.continue }]
+    ],
+    image: img_path,
+    image_width: 44,
+    title: "Galeria Wallpaper JPEG",
+    subtitle: "Visor de Imagenes en Terminal\nRenderizado Ultra-Rapido con Cache",
+    style: 3,
+    banner_style: 3
+  )
+  sub.set_style.focus("rgb")
+  sub.set_style.border("rgb")
+  sub.draw(size_max: 48)
+end
+
+# 3. Menu Principal Interactivo
+def main
+  menu = GRmenu.new(
+    [
+      method(:iniciar_servidor),                                    
+      :crear_respaldo,                                                 
+      ["Metricas del Sistema", method(:ver_metricas)],                 
+      ["Probar Barra de Progreso", method(:demo_barra_progreso), "Ejemplo interactivo de GRmenu.progress al 100%"],
+      ["Probar Spinner de Carga", method(:demo_spinner), "Animacion en tiempo real para funciones pesadas"],
+      ["Seleccion Multiple (Checkbox)", method(:demo_seleccion_multiple), "Marcar/Desmarcar items con Espacio, a, n, i"],
+      ["Control Deslizante (Slider / Range)", method(:demo_slider_interactivo), "Ajustar valores numericos interactivamente con ← y →"],
+      ["Probar Paginacion (20 items)", method(:demo_paginacion), "Desplazamiento suave con auto-scroll"],
+      ["Buscador en Vivo (search: true)", method(:demo_buscador_en_vivo), "Filtro instantaneo en vivo mientras escribes"],
+      ["Cuadricula 2D (columns: 2)", method(:demo_cuadricula_columnas), "Navegacion con las 4 flechas (↑, ↓, ←, →)"],
+      ["Modales Nativos (Confirm & Input)", method(:demo_modales_confirm_input), "Dialogos emergentes interactivos para preguntas y texto"],
+      ["Probar Imagen PNG", method(:demo_imagen_terminal), "Muestra fotos PNG con micro-pixeles ANSI TrueColor"],
+      ["Probar Imagen JPEG", method(:demo_imagen_fondo_jpeg), "Muestra imagenes JPEG/JPG con cache instantanea"],
+      ["Ejecutar Lambda", -> { puts Color.rgb("Ejecutando bloque lambda dinamico!"); GRmenu.continue }],
+      ["Probar Banner Helper", method(:prueba_banner_rapido)],        
+      ["Ver Ayuda y Referencia", method(:ver_ayuda_completa), "Abre la guia de documentacion interactiva en consola"],        
+      method(:salir)                                                  
+    ],
+    banner: "GRMENU",                                               
+    title: "Panel de Control v3.0",                                         
+    subtitle: "Consola de Administracion TTY\nUsa las flechas y Enter",                                                            
+    style: 3,                                                         
+    banner_style: 3,                                                   
+    divider: true,                                                    
+    center: true,
+    page_size: 7                                             
+  )
+
+  # Configuracion completa en modo RGB Chroma Wave
+  menu.set_style.font(1)             
+  menu.set_style.banner("rgb")   
+  menu.set_style.title("rgb")  
+  menu.set_style.subtitle("rgb")
+  menu.set_style.divider("rgb")  
+  menu.set_style.border("rgb") 
+  menu.set_style.options("rgb") 
+  menu.set_style.focus("rgb")   
+
+  menu.draw(size_max: 44)
+end
+
+loop { main }
+```
+
+### Video Demostrativo en Accion
+
+[![Ver Video Demostrativo](assets/demo.png)](assets/grmenu.mp4)
+
+> **Nota:** Puedes reproducir o descargar la grabacion de pantalla interactiva en [`ruby/assets/grmenu.mp4`](assets/grmenu.mp4).
 
 ---
 
@@ -500,43 +837,8 @@ Configura el diseno del marco mediante el parametro `style: 1..20`:
 
 ---
 
-## Recetas y Casos de Uso del Mundo Real
-
-### Asistente de Instalacion de Servidores
-
-```ruby
-require 'GRmenu'
-
-GRmenu.clear_screen
-GRmenu.banner("SETUP", 0, color: "rgb", style: 3, font: 1)
-
-nombre = GRmenu.input("Nombre del proyecto:", default: "mi-app", color: "rgb")
-puerto = GRmenu.slider("Puerto HTTP:", min: 3000, max: 9000, step: 100, default: 8080, color: "rgb")
-
-modulos = [
-  ["Proxy Nginx", true, "Servidor web frontal"],
-  ["Base PostgreSQL", true, "Base de datos relacional"],
-  ["Redis Cache", false, "Acelerador de sesiones"]
-]
-seleccion = GRmenu.checkbox(modulos, title: "Selecciona Modulos", color: "rgb")
-
-if GRmenu.confirm("Deseas comenzar la instalacion ahora?", default: true, color: "rgb")
-  GRmenu.progress(100, title: "Instalando Componentes", color: "rgb") do |bar|
-    seleccion.each_with_index do |item, idx|
-      sleep 0.4
-      bar.advance(100 / seleccion.length, status: "Configurando #{item[0]}...")
-    end
-  end
-  puts Color.bright_green("\n-> Instalacion de '#{nombre}' completada en el puerto #{puerto}!")
-end
-GRmenu.continue
-```
-
----
-
 ## Licencia
 
 Distribuido bajo licencia **MIT**. Consulta [`LICENSE`](LICENSE) para mas detalles.
 
 Desarrollado con precision por **[grcode](https://github.com/JoseEduardoGR)**
-
