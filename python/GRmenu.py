@@ -158,8 +158,8 @@ class GRmenu():
             title: Titulo que se muestra dentro del recuadro de opciones. Si
                 queda vacio ("") no se dibuja la fila de titulo.
             style: Numero de estilo de marco de opciones a usar (1 al 20, ver
-                `GRmenu.STYLES()` y `GRmenu.BORDERS()`; ej: 7 = redondeado,
-                3 = doble linea). Por defecto 19 ("●").
+                `GRmenu.BORDERS()`; ej: 7 = redondeado, 3 = doble linea).
+                Por defecto 19 ("●").
             banner: Texto gigante en arte ASCII 3D que se muestra arriba del
                 menu (ver `build_ascii_lines`/`draw`). Si queda vacio ("") no
                 se dibuja ningun banner.
@@ -289,25 +289,6 @@ class GRmenu():
         node.scroll = max(0, min(node.scroll, total - limit))
 
 
-    @staticmethod
-    def STYLES():
-        """Devuelve los simbolos usados para dibujar un borde "simple".
-
-        Se usan como respaldo cuando el estilo elegido (`self.style`) no
-        tiene una definicion detallada (esquinas + lineas) en `BORDERS()`:
-        en ese caso `draw()` repite este mismo caracter para todo el
-        recuadro en vez de usar esquinas distintas.
-
-        Returns:
-            dict: mapea el numero de estilo (int, 1 a 20) al caracter que le
-                corresponde. Por ejemplo `STYLES()[19]` es "●".
-        """
-        return {
-            1:"#",2:"┌",3:"╔",4:"┏",5:"╒",6:"╓",7:"╭",8:"▛",
-            9:"▓",10:"▒",11:"░",12:"█",13:"*",14:"+",15:"=",
-            16:"~",17:"-",18:"◆",19:"●",20:"★"
-        }
-
     _colors_cache = None
 
     @staticmethod
@@ -356,10 +337,19 @@ class GRmenu():
                     tr -> esquina superior derecha
                     bl -> esquina inferior izquierda
                     br -> esquina inferior derecha
+                Un estilo "simple" (mismo caracter en todo el recuadro, sin
+                esquinas distintas) se puede escribir en `borders.json` como
+                un string suelto en vez del dict completo (ej. `"9": "▓"`);
+                aca se expande a las 6 claves de arriba, todas con ese mismo
+                caracter.
         """
         if GRmenu._borders_cache is None:
             with open(GRmenu._data_path("borders.json"), encoding="utf-8") as fh:
-                GRmenu._borders_cache = json.load(fh)
+                raw = json.load(fh)
+            GRmenu._borders_cache = {
+                style: (value if isinstance(value, dict) else dict.fromkeys(("h", "v", "tl", "tr", "bl", "br"), value))
+                for style, value in raw.items()
+            }
         return GRmenu._borders_cache
     
     class SetStyle:
@@ -954,7 +944,7 @@ class GRmenu():
                     lines.append(f"{v} {option} {v}")
             lines.append(self._colorize(b["bl"] + line + b["br"], bc))
         else:
-            symbol = self.STYLES().get(style, "#")
+            symbol = "#"
             border = self._colorize(symbol, bc)
             lines.append(self._colorize(symbol * width, bc))
             if title:
@@ -1007,7 +997,7 @@ class GRmenu():
                 lines.append(f"{v} {self._colorize(ln[:width - 4].ljust(width - 4), oc)} {v}")
             lines.append(self._colorize(b["bl"] + line + b["br"], bc))
         else:
-            symbol = self.STYLES().get(style, "#")
+            symbol = "#"
             border = self._colorize(symbol, bc)
             lines.append(self._colorize(symbol * width, bc))
             lines.append(f"{border} {self._colorize(title.center(width - 4), tc)} {border}")
@@ -1205,7 +1195,7 @@ class GRmenu():
         if b:
             h5 = GRmenu._hline(b["h"], 5)
             return f"{b['tl']}{h5}{b['tr']}  {b['v']}     {b['v']}  {b['bl']}{h5}{b['br']}"
-        sym = GRmenu.STYLES().get(n, "#")
+        sym = "#"
         return f"{sym * 7}  {sym}     {sym}  {sym * 7}"
 
     @staticmethod
