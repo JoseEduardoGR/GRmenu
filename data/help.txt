@@ -8,7 +8,7 @@
 {bright_cyan}╚═══════════════════════════════════════════════════════════════════════════════════╝{reset}
 
 {bright_cyan}╔═══════════════════════════════════════════════════════════════════════════════════╗{reset}
-{bright_cyan}║{bright_yellow}                DOCUMENTACION Y GUIA COMPLETA DE PARAMETROS (v3.0)                 {bright_cyan}║{reset}
+{bright_cyan}║{bright_yellow}                DOCUMENTACION Y GUIA COMPLETA DE PARAMETROS (v4.0)                 {bright_cyan}║{reset}
 {bright_cyan}║{gray}    Referencia exhaustiva de clases, metodos publicos, colores y configuracion     {bright_cyan}║{reset}
 {bright_cyan}╚═══════════════════════════════════════════════════════════════════════════════════╝{reset}
 
@@ -117,20 +117,23 @@
     - {cyan}Teclas:{reset}    {yellow}↑ / ↓{reset} (navegar), {yellow}s{reset} (ordenar), {yellow}Enter{reset} (elegir fila), {yellow}Esc / q{reset} (salir).
     - {cyan}Retorna:{reset}   La fila seleccionada por el usuario (o nil si cancela).
 
-  {bright_green}* GRmenu.card(title: nil, content: "", style: 7, color: "cyan", pause: true){reset}
+  {bright_green}* GRmenu.card(title: nil, content: "", style: 7, border_color: "cyan", title_color: "yellow", content_color: "white", pause: true){reset}
     Recuadro estilizado para reportes y mensajes. Incluye word-wrapping automatico
     para parrafos largos sin deformar bordes ni desbordar la consola.
-    - {cyan}title:{reset}   [String] Titulo superior centrado.
-    - {cyan}content:{reset} [String] Mensaje o reporte (admite parrafos continuos o \n).
-    - {cyan}color:{reset}   [String] Color del borde (soporta "rgb").
-    - {cyan}style:{reset}   [Integer 1..20] Estilo de marco (default: 7).
+    - {cyan}title:{reset}         [String] Titulo superior centrado.
+    - {cyan}content:{reset}       [String] Mensaje o reporte (admite parrafos continuos o \n).
+    - {cyan}border_color:{reset}  [String] Color del marco (soporta hex, neon y "rgb").
+    - {cyan}title_color:{reset}   [String] Color del texto del titulo.
+    - {cyan}content_color:{reset} [String] Color del contenido.
+    - {cyan}style:{reset}         [Integer 1..20] Estilo de marco (default: 7).
 
-  {bright_green}* GRmenu.alert(tipo, mensaje, title: nil, style: 3, pause: true){reset}
+  {bright_green}* GRmenu.alert(tipo, mensaje, title: nil, style: 3, border_color: nil, title_color: nil, pause: true){reset}
     Emite una notificacion modal con tag visual y paleta correspondiente:
     - {cyan}:success{reset} -> Verde  [✔ EXITO]
     - {cyan}:error{reset}   -> Rojo   [✖ ERROR]
     - {cyan}:warning{reset} -> Ambar  [⚠ AVISO]
     - {cyan}:info{reset}    -> Cian   [ℹ INFO]
+    - Soporta colores personalizados con {cyan}border_color:{reset} y {cyan}title_color:{reset}.
 
 {bright_magenta}═════════════════════════════════════════════════════════════════════════════════════{reset}
 {bright_yellow}[5] MODALES, CHECKBOXES Y CONTROLES INTERACTIVOS{reset}
