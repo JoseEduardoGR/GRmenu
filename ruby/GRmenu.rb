@@ -2663,7 +2663,14 @@ class GRmenu
     color_name = (color_config[:color] || color_config["color"]).to_s.downcase.strip
     brightness_level = (color_config[:level] || color_config["level"] || 1).to_i
 
-    is_anim_active = @animate && ["diagonal", "linear", "fade", "rgb", "rainbow", "chroma", "neon"].include?(@animate.to_s.downcase)
+    if color_name.include?(":")
+      parts = color_name.split(":")
+      color_name = parts[0].strip
+      brightness_level = parts[1].to_i if parts[1] && !parts[1].empty?
+    end
+
+    is_neon_color = color_name.start_with?("neon")
+    is_anim_active = is_neon_color || (@animate && ["diagonal", "linear", "fade", "rgb", "rainbow", "chroma", "neon"].include?(@animate.to_s.downcase))
     is_chroma = color_name == "rgb" || color_name == "rainbow" || color_name == "chroma" || @animate.to_s.downcase == "rgb"
 
     if is_chroma
@@ -3170,7 +3177,24 @@ class GRmenu
 
   def has_active_animation?
     return true if @animate && ["diagonal", "linear", "fade", "rgb", "rainbow", "chroma", "neon"].include?(@animate.to_s.downcase)
-    has_rgb_animation?
+    return true if has_rgb_animation?
+    configs = [
+      @style_config.border,
+      @style_config.options,
+      @style_config.focus,
+      @style_config.title,
+      @style_config.banner,
+      @style_config.subtitle,
+      @style_config.divider
+    ]
+    configs.any? do |c|
+      if c.is_a?(Hash)
+        val = (c[:color] || c["color"]).to_s.downcase.strip
+        val.start_with?("neon")
+      else
+        false
+      end
+    end
   end
 
   def style(css_content)
