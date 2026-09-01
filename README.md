@@ -4,7 +4,7 @@
 
 **Suite TUI y Menus Interactivos para Terminal en Modo TTY Crudo**
 
-Soporte completo para **Ruby (v3.0)** y **Python (v0.2)**, con Banners ASCII 3D, seleccion multiple con checkboxes, sliders en tiempo real, visor de imagenes ANSI TrueColor, modo cromatico RGB animado a 30 FPS, modales nativos, buscador en vivo, cuadriculas 2D, barras de progreso y spinners sin dependencias externas.
+Soporte completo para **Ruby (v4.0)** y **Python (v0.2)**, con sistema de temas .gr tipo CSS, exportacion CLI (-theme), tablas interactivas con buscador y ordenamiento, Banners ASCII 3D, seleccion multiple con checkboxes, sliders en tiempo real, visor de imagenes ANSI TrueColor, modo cromatico RGB y Living Neon animado a 30 FPS, colores hexadecimales directos (#RRGGBB), 90+ colores calibrados, modales nativos, buscador en vivo, cuadriculas 2D, barras de progreso y spinners sin dependencias externas.
 
 | Ruby (Gema) | Python (PyPI) |
 |:---:|:---:|
@@ -25,7 +25,7 @@ Soporte completo para **Ruby (v3.0)** y **Python (v0.2)**, con Banners ASCII 3D,
 1. [Caracteristicas Principales](#caracteristicas-principales)
 2. [Instalacion](#instalacion)
 3. [Guia de Inicio Rapido (Ruby y Python)](#guia-de-inicio-rapido)
-4. [Nuevas Funcionalidades en Ruby (v3.0)](#nuevas-funcionalidades-en-ruby-v30)
+4. [Nuevas Funcionalidades en Ruby (v4.0)](#nuevas-funcionalidades-en-ruby-v40)
    - [1. Seleccion Multiple con Checkboxes (GRmenu.checkbox)](#1-seleccion-multiple-con-checkboxes-grmenucheckbox)
    - [2. Control Deslizante en Tiempo Real (GRmenu.slider)](#2-control-deslizante-en-tiempo-real-grmenuslider)
    - [3. Renderizado Universal de Imagenes (GRmenu.image)](#3-renderizado-universal-de-imagenes-en-terminal-grmenuimage)
@@ -33,6 +33,14 @@ Soporte completo para **Ruby (v3.0)** y **Python (v0.2)**, con Banners ASCII 3D,
    - [5. Modo RGB Chroma Wave Animado a 30 FPS](#5-modo-rgb-chroma-wave-animado)
    - [6. Barra de Progreso y Spinner con Modo RGB](#6-barra-de-progreso-y-spinner-con-modo-rgb)
    - [7. Modulo de Color (Color / C)](#7-paleta-de-colores-y-modulo-color)
+   - [8. Sistema de Temas .gr y CSS para TUI (GRmenu.theme)](#8-sistema-de-temas-gr-y-css-para-tui-v40)
+   - [9. Exportacion de Temas desde Terminal / CLI (-theme)](#9-exportacion-de-temas-desde-terminal--cli-theme-v40)
+   - [10. CSS Inline en el Codigo (<<-GR)](#10-css-inline-en-el-codigo--gr-v40)
+   - [11. Tablas Interactivas con Buscador y Ordenamiento (GRmenu.table)](#11-tablas-interactivas-con-buscador-y-ordenamiento-grmenutable-v40)
+   - [12. Tarjetas y Alertas Estilizadas (GRmenu.card y GRmenu.alert)](#12-tarjetas-y-alertas-estilizadas-grmenucard-y-grmenualert-v40)
+   - [13. Colores Hexadecimales Directos y Catalogo de 90+ Colores](#13-colores-hexadecimales-directos-y-catalogo-de-90-colores-v40)
+   - [14. Iluminacion Dinamica Living Neon a 30 FPS](#14-iluminacion-dinamica-living-neon-a-30-fps-v40)
+   - [15. Require Flexible de la Gema ('grmenu' o 'GRmenu')](#15-require-flexible-de-la-gema-v40)
 5. [Ejemplo Completo en Ruby (e.rb)](#ejemplo-completo-en-ruby-erb)
 6. [Ejemplo Completo en Python](#ejemplo-completo-en-python)
 7. [10 Fuentes ASCII 3D para Banners (font: 1..10)](#10-fuentes-ascii-3d-para-banners-font-110)
@@ -73,7 +81,7 @@ gem install grmenu
 O en tu `Gemfile`:
 
 ```ruby
-gem 'grmenu', '~> 3.0'
+gem 'grmenu', '~> 4.0'
 ```
 
 ### Python (PyPI)
@@ -274,6 +282,174 @@ puts Color.orange("Texto naranja")
 puts Color.purple("Texto morado")
 puts Color.pink("Texto rosa")
 puts Color.gray("Texto gris")
+```
+
+---
+
+### 8. Sistema de Temas .gr y CSS para TUI (v4.0)
+
+Carga temas predefinidos con un diseño visual completo o importa tus propios archivos `.gr`:
+
+```ruby
+# Carga de temas del catalogo incluido
+GRmenu.theme(:neon_red)    # Rojos incandescentes y foco amarillo neón
+GRmenu.theme(:cyberpunk)   # Neones cian, magenta y amarillo Chroma
+GRmenu.theme(:matrix)      # Verde terminal fosforescente hacker
+GRmenu.theme(:dracula)     # Paleta morada oscura y cian
+GRmenu.theme(:nord)        # Azules articos y tonos frios
+GRmenu.theme(:monokai)     # Amarillos, verdes y magentas
+GRmenu.theme(:sunset)      # Atardecer calido en rojos y naranjas
+
+# Cargar un archivo .gr propio
+GRmenu.import_config("mi_tema.gr")
+```
+
+---
+
+### 9. Exportacion de Temas desde Terminal / CLI (`-theme`) (v4.0)
+
+Extrae automaticamente el tema de cualquier script en Ruby directamente desde la terminal a un archivo `.gr` reutilizable:
+
+```bash
+# Exporta el tema configurado en el script con nombre automatico:
+ruby mi_script.rb -theme
+
+# Especifica el archivo de salida exacto:
+ruby mi_script.rb -theme -o tema_produccion.gr
+```
+
+O de forma programatica desde tu codigo:
+
+```ruby
+GRmenu.export_from_file("mi_script.rb", "tema_extraido.gr")
+```
+
+---
+
+### 10. CSS Inline en el Codigo (`<<-GR`) (v4.0)
+
+Define la estetica completa de tu aplicacion usando un bloque tipo `<style>` sin necesidad de archivos externos:
+
+```ruby
+menu = GRmenu.new(opciones, title: "App con CSS Inline")
+
+menu.style(<<-GR)
+<<menu
+  style:: 3
+  animate:: diagonal
+  border:: #FF0055:1
+  title:: #00F5FF:2
+  focus:: gold:2
+  banner:: neon_crimson:2
+  subtitle:: #A6E3A1:1
+>>
+GR
+
+menu.draw
+```
+
+---
+
+### 11. Tablas Interactivas con Buscador y Ordenamiento (`GRmenu.table`) (v4.0)
+
+Navega colecciones de datos tabulares con buscador interactivo en vivo, ordenamiento por columnas pulsando la tecla `s` y paginacion:
+
+```ruby
+headers = ["ID", "SERVICIO", "ESTADO", "LATENCIA"]
+filas = [
+  ["01", "API Gateway", "Operativo", "12ms"],
+  ["02", "PostgreSQL",  "Operativo", "2ms"],
+  ["03", "Redis Cache", "Operativo", "1ms"],
+  ["04", "Sidekiq",     "Ocupado",   "45ms"]
+]
+
+seleccion = GRmenu.table(
+  headers: headers,
+  rows: filas,
+  title: "Monitor de Infraestructura",
+  search: true,  # Buscador en vivo
+  sort: true,    # Ordena con la tecla 's'
+  page_size: 5,
+  style: 3
+)
+
+if seleccion
+  puts "Fila seleccionada: #{seleccion.join(' | ')}"
+end
+```
+
+---
+
+### 12. Tarjetas y Alertas Estilizadas (`GRmenu.card` y `GRmenu.alert`) (v4.0)
+
+Cuadros informativos con division automatica de lineas (*word-wrap*) y soporte para colores TrueColor de 24 bits:
+
+```ruby
+# Alertas con diseno contextual y colores automaticos
+GRmenu.alert(:success, "Operacion completada con exito.")
+GRmenu.alert(:warning, "Uso de memoria al 85%.")
+GRmenu.alert(:error, "Fallo en la peticion al cluster.")
+GRmenu.alert(:info, "Actualizacion disponible.")
+
+# Tarjeta informativa con colores personalizados
+GRmenu.card(
+  title: "Metricas del Cluster",
+  content: "Nodos Activos: 8/8\nCarga promedio: 0.42\nMemoria libre: 12.4 GB",
+  border_color: "#FF0055",
+  title_color: "#00F5FF",
+  content_color: "gold",
+  style: 7
+)
+```
+
+---
+
+### 13. Colores Hexadecimales Directos y Catalogo de 90+ Colores (v4.0)
+
+Soporte nativo para TrueColor de 24 bits mediante codigos hexadecimales (`#RRGGBB` o `#RGB`) y una paleta de 90+ colores calibrados con su version normal y su version neón:
+
+```ruby
+# 1. En configuracion de menus con encadenamiento fluido:
+menu.set_style.border("#FF0055").title("#00F5FF").focus("gold")
+
+# 2. Con codigos cortos de 3 digitos:
+menu.set_style.border("#0FF")
+
+# 3. Directamente con el modulo Color / C:
+puts Color.hex("#A6E3A1", "Color Verde Menta Hex")
+puts Color.gold("Texto Dorado")
+puts Color.neon_emerald("Texto Esmeralda Neon")
+puts Color.crimson("Texto Rojo Carmesi")
+```
+
+---
+
+### 14. Iluminacion Dinamica Living Neon a 30 FPS (v4.0)
+
+Al activar `animate: "diagonal"`, `"linear"`, `"fade"` o `"rgb"`, el motor proyecta una onda de luz senoidal continua en tiempo real que barre los marcos y banners con destellos de incandescencia sin retraso en el teclado:
+
+```ruby
+menu = GRmenu.new(
+  opciones,
+  banner: "THEMES",
+  title: "Efecto Neon Vivo",
+  style: 3,
+  animate: "diagonal" # "diagonal", "linear", "fade" o "rgb"
+)
+menu.set_style.border("neon_red").banner("neon_red").focus("neon_yellow")
+menu.draw
+```
+
+---
+
+### 15. Require Flexible de la Gema (v4.0)
+
+Puedes requerir la libreria indistintamente en minusculas o mayusculas:
+
+```ruby
+require 'grmenu'  # Sintaxis estandar de gemas
+# o
+require 'GRmenu'  # Sintaxis clasica
 ```
 
 ---
@@ -698,6 +874,8 @@ menu.draw(size_max=32)
 | `style:` | `Integer` | `19` | Estilo de marco para las opciones (1 al 20). |
 | `banner_style:` | `Integer` | `3` | Estilo de marco para el banner (1 al 20). |
 | `font:` | `Integer` | `1` | Fuente ASCII 3D del banner (1 al 10). |
+| `animate:` | `String/Bool` | `false` | Efecto de iluminacion dinamica ("diagonal", "linear", "fade", "rgb"). |
+| `desc_prefix:` | `String` | `"[i]"` | Prefijo visual para el tooltip de ayuda. |
 | `image:` | `String` | `nil` | Ruta a imagen de cabecera (PNG/JPG/WEBP/GIF/BMP). |
 | `image_width:` | `Integer` | `40` | Ancho en columnas de terminal para la imagen. |
 | `divider:` | `Boolean/Int` | `true` | Lineas divisorias a la par del ancho del banner. |
@@ -720,6 +898,13 @@ menu.draw(size_max=32)
 
 | Metodo | Firma | Retorno |
 |:-------|:------|:--------|
+| `GRmenu.theme` | `(nombre_o_simbolo)` | Carga un tema `.gr` predefinido para todo el sistema. |
+| `GRmenu.import_config` | `(ruta_archivo_gr)` | Carga un archivo de tema `.gr` personalizado. |
+| `GRmenu.export_from_file`| `(script_origen, archivo_gr)` | Extrae el tema de un script sin correr bucles. |
+| `GRmenu.style` | `(texto_css_gr)` | Inyecta estilos CSS inline globalmente. |
+| `GRmenu.table` | `(headers:, rows:, title:, search:, sort:, page_size:)` | Muestra tabla interactiva y devuelve fila elegida. |
+| `GRmenu.card` | `(title:, content:, style:, color:, border_color:, title_color:)` | Muestra tarjeta con auto-wrap. |
+| `GRmenu.alert` | `(tipo, mensaje, title:, style:, color:)` | Muestra alerta emergente contextual. |
 | `GRmenu.checkbox` | `(items, title:, color:, style:, page_size:, preselected:)` | `Array` de elementos seleccionados. |
 | `GRmenu.slider` | `(prompt, min:, max:, step:, default:, unit:, color:, style:)` | `Numeric` con el valor seleccionado. |
 | `GRmenu.confirm` | `(pregunta, default: true, color: "cyan", style: 3)` | `Boolean` (`true` para Si, `false` para No). |
