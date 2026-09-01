@@ -1,0 +1,60 @@
+GRmenu::config<-1->
+
+@theme:: "Cyberpunk 2077"
+@author:: "grcode"
+@version:: "1.0"
+
+<<menu
+  style:: 3
+  banner_style:: 3
+  font:: 1
+  animate:: rgb
+  center:: true
+  border:: rgb:2
+  title:: yellow:2
+  subtitle:: cyan:1
+  banner:: rgb:2
+  divider:: cyan:1
+  options:: white:1
+  focus:: rgb:2
+  description:: pink:1
+>>
+
+<<table
+  style:: 3
+  header_color:: yellow:2
+  border_color:: rgb:2
+  row_color:: white:1
+  selected_row:: rgb:2
+  zebra_striping:: true
+  animate:: diagonal
+>>
+
+<<card
+  style:: 7
+  border_color:: rgb:2
+  title_color:: yellow:2
+  content_color:: white:1
+  icon_style:: brackets
+>>
+
+<<slider
+  style:: 3
+  color:: rgb:2
+  fill_char:: █
+  empty_char:: ░
+>>
+
+<<checkbox
+  style:: 3
+  color:: rgb:2
+  checked_mark:: [X]
+  unchecked_mark:: [ ]
+>>
+
+<<modal
+  style:: 3
+  border_color:: rgb:2
+  prompt_color:: yellow:2
+  mask_char:: *
+>>

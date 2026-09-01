@@ -1,0 +1,60 @@
+GRmenu::config<-1->
+
+@theme:: "Matrix Terminal"
+@author:: "grcode"
+@version:: "1.0"
+
+<<menu
+  style:: 2
+  banner_style:: 2
+  font:: 1
+  animate:: linear
+  center:: true
+  border:: green:2
+  title:: green:2
+  subtitle:: green:1
+  banner:: green:2
+  divider:: green:1
+  options:: green:1
+  focus:: green:2
+  description:: green:1
+>>
+
+<<table
+  style:: 2
+  header_color:: green:2
+  border_color:: green:1
+  row_color:: green:1
+  selected_row:: green:2
+  zebra_striping:: false
+  animate:: linear
+>>
+
+<<card
+  style:: 2
+  border_color:: green:2
+  title_color:: green:2
+  content_color:: green:1
+  icon_style:: brackets
+>>
+
+<<slider
+  style:: 2
+  color:: green:2
+  fill_char:: █
+  empty_char:: ░
+>>
+
+<<checkbox
+  style:: 2
+  color:: green:2
+  checked_mark:: [X]
+  unchecked_mark:: [ ]
+>>
+
+<<modal
+  style:: 2
+  border_color:: green:2
+  prompt_color:: green:2
+  mask_char:: *
+>>
