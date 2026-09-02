@@ -1,0 +1,51 @@
+GRmenu::config<-1->
+
+@theme:: "Neon Red"
+@author:: "grcode"
+@version:: "1.0"
+
+<<menu
+  style:: 3
+  banner_style:: 3
+  font:: 1
+  animate:: diagonal
+  desc_prefix:: [!]
+  center:: true
+  border:: neon_red:2
+  title:: neon_red:2
+  focus:: neon_yellow:2
+  options:: white:1
+  banner:: neon_red:2
+  subtitle:: neon_pink:2
+  divider:: neon_red:1
+>>
+
+<<table
+  style:: 3
+  header_color:: neon_yellow:2
+  border_color:: neon_red:2
+  selected_row:: neon_red:2
+  row_color:: white:1
+  zebra_striping:: true
+>>
+
+<<card
+  style:: 7
+  border_color:: neon_red:2
+  title_color:: neon_yellow:2
+  content_color:: white:1
+>>
+
+<<slider
+  style:: 3
+  color:: neon_red:2
+  fill_char:: █
+  empty_char:: ░
+>>
+
+<<checkbox
+  style:: 3
+  color:: neon_red:2
+  checked_mark:: [X]
+  unchecked_mark:: [ ]
+>>

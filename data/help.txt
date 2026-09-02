@@ -8,8 +8,8 @@
 {bright_cyan}╚═══════════════════════════════════════════════════════════════════════════════════╝{reset}
 
 {bright_cyan}╔═══════════════════════════════════════════════════════════════════════════════════╗{reset}
-{bright_cyan}║{bright_yellow}                DOCUMENTACION Y GUIA COMPLETA DE PARAMETROS (v2.0)                 {bright_cyan}║{reset}
-{bright_cyan}║{gray}    Referencia exhaustiva de clases, metodos publicos, colores y configuracion   {bright_cyan}║{reset}
+{bright_cyan}║{bright_yellow}                DOCUMENTACION Y GUIA COMPLETA DE PARAMETROS (v4.0)                 {bright_cyan}║{reset}
+{bright_cyan}║{gray}    Referencia exhaustiva de clases, metodos publicos, colores y configuracion     {bright_cyan}║{reset}
 {bright_cyan}╚═══════════════════════════════════════════════════════════════════════════════════╝{reset}
 
 {bright_magenta}═════════════════════════════════════════════════════════════════════════════════════{reset}
@@ -18,29 +18,40 @@
   Crea una nueva instancia de menu interactivo para la terminal.
 
   {cyan}PARAMETROS DEL CONSTRUCTOR:{reset}
-  {bright_green}* functions:{reset}    {white}[Array]{reset}   -> Lista de opciones (ver formatos en seccion [2]).
-  {bright_green}* title:{reset}        {white}[String]{reset}  -> Titulo centrado en el recuadro del menu.
-  {bright_green}* banner:{reset}       {white}[String]{reset}  -> Texto convertido a arte ASCII 3D superior.
-  {bright_green}* subtitle:{reset}     {white}[String]{reset}  -> Descripcion/subtitulo (admite saltos con \n).
-  {bright_green}* search:{reset}       {white}[Boolean]{reset} -> Buscador en vivo instantaneo (default: false).
-  {bright_green}* columns:{reset}      {white}[Integer]{reset} -> Cantidad de columnas para grid 2D (default: 1).
-  {bright_green}* page_size:{reset}    {white}[Integer]{reset} -> Filas visibles antes de scroll (default: auto).
-  {bright_green}* style:{reset}        {white}[Integer]{reset} -> Estilo de marco de opciones 1..20 (default: 19).
-  {bright_green}* banner_style:{reset} {white}[Integer]{reset} -> Estilo de marco para banner 1..20 (default: 3).
-  {bright_green}* font:{reset}         {white}[Integer]{reset} -> Fuente ASCII del banner 1..10 (default: 1).
-  {bright_green}* image:{reset}        {white}[String]{reset}  -> Ruta a imagen (PNG/JPG/WEBP/GIF/BMP) de cabecera.
-  {bright_green}* image_width:{reset}  {white}[Integer]{reset} -> Ancho en columnas de la imagen (default: 40).
-  {bright_green}* divider:{reset}      {white}[Boolean/Int]{reset} -> Lineas divisorias o ancho numerico.
-  {bright_green}* center:{reset}       {white}[Boolean]{reset} -> Centrado horizontal en consola (default: true).
+  {bright_green}* functions:{reset}    {white}[Array]{reset}        -> Lista de opciones a ejecutar (ver seccion [2]).
+  {bright_green}* title:{reset}        {white}[String]{reset}       -> Titulo centrado en el marco del menu.
+  {bright_green}* banner:{reset}       {white}[String]{reset}       -> Texto convertido a arte ASCII 3D superior.
+  {bright_green}* subtitle:{reset}     {white}[String]{reset}       -> Descripcion o subtitulo (admite saltos de linea \n).
+  {bright_green}* search:{reset}       {white}[Boolean]{reset}      -> Buscador en vivo con filtro reactivo (default: false).
+  {bright_green}* columns:{reset}      {white}[Integer]{reset}      -> Cantidad de columnas para grid 2D (default: 1).
+  {bright_green}* page_size:{reset}    {white}[Integer]{reset}      -> Cantidad de filas visibles antes de scroll (default: auto).
+  {bright_green}* style:{reset}        {white}[Integer 1..20]{reset} -> Estilo de marco de opciones (default: 19).
+  {bright_green}* banner_style:{reset} {white}[Integer 1..20]{reset} -> Estilo de marco para el banner (default: 3).
+  {bright_green}* font:{reset}         {white}[Integer 1..10]{reset} -> Fuente tipografica ASCII 3D del banner (default: 1).
+  {bright_green}* image:{reset}        {white}[String]{reset}       -> Ruta a imagen (PNG/JPG/WEBP/GIF/BMP) de cabecera.
+  {bright_green}* image_width:{reset}  {white}[Integer]{reset}      -> Ancho en columnas para renderizar la imagen (default: 40).
+  {bright_green}* divider:{reset}      {white}[Boolean/Int]{reset}  -> Lineas divisorias horizontales o ancho especifico.
+  {bright_green}* center:{reset}       {white}[Boolean]{reset}      -> Centrado horizontal automatico en consola (default: true).
+  {bright_green}* animate:{reset}      {white}[String/Bool]{reset}  -> Animacion de entrada ("diagonal", "linear", "fade", "rgb", false).
+  {bright_green}* desc_prefix:{reset}  {white}[String]{reset}       -> Prefijo del pie de tooltip/descripcion (default: "[i]").
 
   {cyan}METODOS DE INSTANCIA:{reset}
   {bright_white}* menu.draw(size_max: 40, min_width: nil){reset}
-    Inicia el bucle interactivo. Bloquea hasta que el usuario seleccione.
+    Inicia el bucle interactivo de terminal. Bloquea hasta que el usuario elija.
     - {cyan}size_max:{reset} Ancho minimo visual garantizado en columnas.
-    - Retorna el valor devuelto por la accion ejecutada.
+    - {cyan}Deteccion CLI:{reset} Si se ejecuta el script con {yellow}-theme{reset} o {yellow}-ex{reset}, exporta
+      automaticamente el tema configurado a un archivo .gr y termina la ejecucion.
+    - Retorna el valor devuelto por la accion seleccionada.
+
+  {bright_white}* menu.style(bloque_gr){reset}
+    Aplica configuracion CSS al menu usando un bloque de texto (ej: <<-GR ... GR).
+    Permite definir bordes, animaciones, prefijos y colores inline sin archivos externos.
+
+  {bright_white}* menu.export_theme(ruta = nil){reset} (Alias: {bright_white}menu.export_config{reset})
+    Guarda la configuracion actual de este menu en un archivo de tema .gr.
 
   {bright_white}* menu.set_style{reset}
-    Objeto de personalizacion individual (ver seccion [3]).
+    Acceso al objeto de personalizacion fluido por metodos (ver seccion [3]).
 
 {bright_magenta}═════════════════════════════════════════════════════════════════════════════════════{reset}
 {bright_yellow}[2] FORMATOS DE OPCIONES EN EL ARRAY functions{reset}
@@ -61,63 +72,79 @@
 
   {cyan}4. Arreglo con Tooltip Dinamico [Nombre, Accion, Descripcion]:{reset}
      {bright_white}["Crear Respaldo", :respaldo, "Copia de seguridad en S3"]{reset}
-     -> Muestra la descripcion abajo del recuadro cuando esta enfocado.
+     -> Muestra la descripcion en el pie del menu cuando la opcion tiene foco.
 
   {cyan}5. Lambda o Proc:{reset}
      {bright_white}["Limpiar Cache", -> { puts "Cache limpia!"; GRmenu.continue }]{reset}
      {bright_white}["Test", -> { puts "OK" }, "Descripcion tooltip opcional"]{reset}
 
   {cyan}6. Hash explicito:{reset}
-     {bright_white}{ name: "Configurar", action: method(:config), desc: "Ajustes" }{reset}
+     {bright_white}{ name: "Configurar", action: method(:config), desc: "Ajustes del sistema" }{reset}
 
 {bright_magenta}═════════════════════════════════════════════════════════════════════════════════════{reset}
-{bright_yellow}[3] PERSONALIZACION DE COLORES Y MODO RGB ANIMADO: menu.set_style{reset}
+{bright_yellow}[3] PERSONALIZACION DE COLORES Y MODO RGB: menu.set_style{reset}
 {bright_magenta}═════════════════════════════════════════════════════════════════════════════════════{reset}
-  Personaliza colores y brillo de cada elemento estatico o animado.
-  Acepta: {cyan}(color_name, brightness_level){reset}, {cyan}Hash { color:, level: }{reset},
-  o el modo dinamico {bright_yellow}"rgb"{reset} / {bright_yellow}"rainbow"{reset} para animacion fluida a 30 FPS.
+  Acepta: {cyan}(nombre_color, nivel_brillo){reset}, {cyan}Hash { color:, level: }{reset},
+  o el modo dinamico {bright_yellow}"rgb"{reset} / {bright_yellow}"rainbow"{reset} para animacion multicolor fluida a 30 FPS.
 
-  {bright_green}* menu.set_style.font(id){reset}
-    - {cyan}id:{reset} [Integer 1..10] -> Fuente 3D del banner.
-  {bright_green}* menu.set_style.banner(color, level = 2){reset}
-    - Color de las letras 3D (soporta "rgb" para ola arcoiris Chroma).
-  {bright_green}* menu.set_style.title(color, level = 2){reset}
-    - Color del titulo de cabecera del menu (soporta "rgb").
-  {bright_green}* menu.set_style.subtitle(color, level = 2){reset}
-    - Color del texto del subtitulo / descripcion (soporta "rgb").
-  {bright_green}* menu.set_style.divider(color, level = 1){reset}
-    - Color de las lineas divisorias horizontales (soporta "rgb").
-  {bright_green}* menu.set_style.border(color, level = 1){reset}
-    - Color del marco y esquinas de la caja de opciones (soporta "rgb").
-  {bright_green}* menu.set_style.options(color, level = 1){reset}
-    - Color de las opciones inactivas / no seleccionadas (soporta "rgb").
-  {bright_green}* menu.set_style.focus(color, level = 2){reset}
-    - Color de la opcion seleccionada (> Opcion) (soporta "rgb").
-
-  {cyan}Efecto RGB Animado en tiempo real:{reset}
-  {bright_white}menu.set_style.banner("rgb"){reset}  # Flujo continuo de colores a 30 FPS
-  {bright_white}menu.set_style.border("rgb"){reset}  # Marco multicolor animado sin lag
+  {bright_green}* menu.set_style.font(id){reset}           -> [Integer 1..10] Fuente 3D del banner.
+  {bright_green}* menu.set_style.banner(color, lvl = 2){reset} -> Letras 3D del banner (soporta "rgb").
+  {bright_green}* menu.set_style.title(color, lvl = 2){reset}  -> Titulo de cabecera del menu.
+  {bright_green}* menu.set_style.subtitle(color, lvl = 2){reset}-> Texto del subtitulo / descripcion.
+  {bright_green}* menu.set_style.divider(color, lvl = 1){reset} -> Lineas divisorias horizontales.
+  {bright_green}* menu.set_style.border(color, lvl = 1){reset}  -> Marco y esquinas de la caja de opciones.
+  {bright_green}* menu.set_style.options(color, lvl = 1){reset} -> Opciones inactivas / sin foco.
+  {bright_green}* menu.set_style.focus(color, lvl = 2){reset}   -> Opcion activa / seleccionada (> Opcion).
+  {bright_green}* menu.set_style.desc_prefix(texto){reset}      -> Prefijo de descripciones (ej: "[i]", "*", "->").
 
   {cyan}Configuracion Global por defecto:{reset}
   {bright_white}GRmenu::SetStyle.border("cyan", 1){reset}
   {bright_white}GRmenu::SetStyle.focus("green", 2){reset}
   {bright_white}GRmenu::SetStyle.title("yellow", 2){reset}
+  {bright_white}GRmenu::SetStyle.desc_prefix("[i]"){reset}
 
 {bright_magenta}═════════════════════════════════════════════════════════════════════════════════════{reset}
-{bright_yellow}[4] MODALES, CHECKBOXES Y CONTROLES INTERACTIVOS{reset}
+{bright_yellow}[4] TABLAS, TARJETAS Y ALERTAS EJECUTIVAS{reset}
 {bright_magenta}═════════════════════════════════════════════════════════════════════════════════════{reset}
 
-  {bright_green}* GRmenu.checkbox(items, title: "...", color: "cyan", style: 3){reset}
+  {bright_green}* GRmenu.table(headers: [...], rows: [...], title: nil, search: false, sort: false, page_size: 8){reset}
+    Renderiza una tabla interactiva con bordes blindados y auto-ajuste de columnas.
+    - {cyan}headers:{reset}   [Array] Nombres de columnas (ej: ["ID", "SERVICIO", "ESTADO"]).
+    - {cyan}rows:{reset}      [Array] Matriz de filas o lista de hashes.
+    - {cyan}search:{reset}    [Boolean] Activa buscador en vivo reactivo pulsando cualquier letra.
+    - {cyan}sort:{reset}      [Boolean] Permite ordenar columnas en orden asc/desc pulsando 's'.
+    - {cyan}page_size:{reset} [Integer] Limite de filas visibles con auto-scroll.
+    - {cyan}Teclas:{reset}    {yellow}↑ / ↓{reset} (navegar), {yellow}s{reset} (ordenar), {yellow}Enter{reset} (elegir fila), {yellow}Esc / q{reset} (salir).
+    - {cyan}Retorna:{reset}   La fila seleccionada por el usuario (o nil si cancela).
+
+  {bright_green}* GRmenu.card(title: nil, content: "", style: 7, border_color: "cyan", title_color: "yellow", content_color: "white", pause: true){reset}
+    Recuadro estilizado para reportes y mensajes. Incluye word-wrapping automatico
+    para parrafos largos sin deformar bordes ni desbordar la consola.
+    - {cyan}title:{reset}         [String] Titulo superior centrado.
+    - {cyan}content:{reset}       [String] Mensaje o reporte (admite parrafos continuos o \n).
+    - {cyan}border_color:{reset}  [String] Color del marco (soporta hex, neon y "rgb").
+    - {cyan}title_color:{reset}   [String] Color del texto del titulo.
+    - {cyan}content_color:{reset} [String] Color del contenido.
+    - {cyan}style:{reset}         [Integer 1..20] Estilo de marco (default: 7).
+
+  {bright_green}* GRmenu.alert(tipo, mensaje, title: nil, style: 3, border_color: nil, title_color: nil, pause: true){reset}
+    Emite una notificacion modal con tag visual y paleta correspondiente:
+    - {cyan}:success{reset} -> Verde  [✔ EXITO]
+    - {cyan}:error{reset}   -> Rojo   [✖ ERROR]
+    - {cyan}:warning{reset} -> Ambar  [⚠ AVISO]
+    - {cyan}:info{reset}    -> Cian   [ℹ INFO]
+    - Soporta colores personalizados con {cyan}border_color:{reset} y {cyan}title_color:{reset}.
+
+{bright_magenta}═════════════════════════════════════════════════════════════════════════════════════{reset}
+{bright_yellow}[5] MODALES, CHECKBOXES Y CONTROLES INTERACTIVOS{reset}
+{bright_magenta}═════════════════════════════════════════════════════════════════════════════════════{reset}
+
+  {bright_green}* GRmenu.checkbox(items, title: "...", color: "cyan", style: 3, page_size: 8){reset}
     (Alias: {bright_white}GRmenu.select_multi{reset}, {bright_white}GRmenu.multiselect{reset})
     Lista interactiva con casillas de verificacion [X] / [ ].
-    - {cyan}items:{reset}       [Array] Elementos (Strings o [Nombre, checked, desc]).
-    - {cyan}title:{reset}       [String] Titulo de cabecera del cuadro.
-    - {cyan}color:{reset}       [String] Color del recuadro (soporta "rgb").
-    - {cyan}style:{reset}       [Integer 1..20] Estilo de marco (default: 3).
-    - {cyan}page_size:{reset}   [Integer] Limite de filas visibles con auto-scroll.
-    - {cyan}preselected:{reset} [Array] Indices o nombres marcados por defecto.
-    - {cyan}Teclas:{reset}      {yellow}Espacio{reset} (marcar), {yellow}a{reset} (todos), {yellow}n{reset} (ninguno), {yellow}i{reset} (invertir), {yellow}Enter{reset}.
-    - {cyan}Retorna:{reset}     {bright_yellow}Array{reset} con los elementos seleccionados por el usuario.
+    - {cyan}items:{reset}       [Array] Strings o arreglos [Nombre, checked, desc].
+    - {cyan}Teclas:{reset}      {yellow}Espacio{reset} (marcar), {yellow}a{reset} (todos), {yellow}n{reset} (ninguno), {yellow}i{reset} (invertir), {yellow}Enter{reset} (confirmar).
+    - {cyan}Retorna:{reset}     {bright_yellow}Array{reset} con los elementos seleccionados.
 
   {bright_green}* GRmenu.slider(prompt, min: 0, max: 100, step: 1, default: 50, unit: ""){reset}
     (Alias: {bright_white}GRmenu.range{reset})
@@ -125,180 +152,240 @@
     - {cyan}prompt:{reset}  [String] Mensaje descriptivo.
     - {cyan}min/max:{reset} [Numeric] Limites inferior y superior.
     - {cyan}step:{reset}    [Numeric] Incremento por paso (default: 1).
-    - {cyan}unit:{reset}    [String] Unidad de medida (ej: "GB", "%", "px").
-    - {cyan}color:{reset}   [String] Color del marco y barra (soporta "rgb").
-    - {cyan}style:{reset}   [Integer 1..20] Estilo de marco (default: 3).
+    - {cyan}unit:{reset}    [String] Unidad de medida (ej: "%", "GB", "px").
     - {cyan}Teclas:{reset}  {yellow}← / →{reset} (paso), {yellow}↑ / ↓{reset} (paso x5), {yellow}Enter{reset} (guardar).
-    - {cyan}Retorna:{reset} {bright_yellow}Numeric{reset} con el valor exacto seleccionado.
+    - {cyan}Retorna:{reset} {bright_yellow}Numeric{reset} con el valor seleccionado.
 
   {bright_green}* GRmenu.confirm(pregunta, default: true, color: "cyan", style: 3){reset}
-    Modal interactivo con botones [ Si ] y [ No ].
-    - {cyan}pregunta:{reset} [String] Mensaje o pregunta a confirmar.
-    - {cyan}default:{reset}  [Boolean] Boton inicial (true = Si, false = No).
-    - {cyan}color:{reset}    [String] Color del recuadro (default: "cyan", soporta "rgb").
-    - {cyan}style:{reset}    [Integer 1..20] Estilo de borde (default: 3).
-    - {cyan}Teclas:{reset}   {yellow}← / → / Tab{reset}, {yellow}s / y{reset} (Si), {yellow}n{reset} (No), {yellow}Enter{reset}.
-    - {cyan}Retorna:{reset}  {bright_yellow}true{reset} si confirma Si, {bright_yellow}false{reset} si elige No o cancela.
+    Modal interactivo con botones [ Sí ] y [ No ].
+    - {cyan}Teclas:{reset}  {yellow}← / → / Tab{reset}, {yellow}s / y{reset} (Si), {yellow}n{reset} (No), {yellow}Enter{reset}.
+    - {cyan}Retorna:{reset} {bright_yellow}true{reset} si confirma Si, {bright_yellow}false{reset} si elige No o cancela.
 
   {bright_green}* GRmenu.input(prompt, default: "", password: false, color: "cyan", style: 3){reset}
-    Cuadro de entrada de texto interactivo con cursor en vivo.
-    - {cyan}prompt:{reset}   [String] Pregunta o instruccion.
-    - {cyan}default:{reset}  [String] Texto inicial precargado.
-    - {cyan}password:{reset} [Boolean] Ocultar texto con asteriscos (****).
-    - {cyan}color:{reset}    [String] Color del recuadro (soporta "rgb").
-    - {cyan}style:{reset}    [Integer 1..20] Estilo de borde (default: 3).
-    - {cyan}Teclas:{reset}   Escribir texto, {yellow}Backspace{reset}, {yellow}Ctrl+U{reset}, {yellow}Enter{reset}.
+    Cuadro de entrada de texto interactivo con cursor en vivo y scroll horizontal.
+    - {cyan}password:{reset} [Boolean] Enmascara caracteres con asteriscos (****).
+    - {cyan}Teclas:{reset}   Escribir texto, {yellow}Backspace{reset}, {yellow}Ctrl+U{reset} (limpiar), {yellow}Enter{reset}.
     - {cyan}Retorna:{reset}  {bright_yellow}String{reset} ingresado por el usuario.
 
 {bright_magenta}═════════════════════════════════════════════════════════════════════════════════════{reset}
-{bright_yellow}[5] BARRA DE PROGRESO, SPINNER E IMAGENES ANSI TRUECOLOR{reset}
+{bright_yellow}[6] BARRA DE PROGRESO, SPINNER E IMAGENES ANSI TRUECOLOR{reset}
 {bright_magenta}═════════════════════════════════════════════════════════════════════════════════════{reset}
 
   {bright_green}* GRmenu.progress(total = 100, title: nil, color: "cyan", style: 3, &bloque){reset}
-    Barra de progreso fluida dentro de marco decorado (soporta color: "rgb").
-    - {cyan}total:{reset} [Integer] Cantidad total de pasos (default: 100).
-    - {cyan}title:{reset} [String, opcional] Titulo superior.
-    - {cyan}color:{reset} [String] Color de la barra ("cyan", "green", "rgb", etc.).
-    - {cyan}level:{reset} [Integer 1 o 2] Nivel de brillo.
-    - {cyan}style:{reset} [Integer 1..20] Estilo de marco (default: 3).
-    - {cyan}width:{reset} [Integer, opcional] Ancho exacto en columnas.
-    - {cyan}Metodos del objeto bar en el bloque:{reset}
-      * {bright_white}bar.advance(n = 1, status: "Texto"){reset} -> Avanza n unidades.
-      * {bright_white}bar.set(valor, status: "Texto"){reset}    -> Fija el progreso exacto.
-      * {bright_white}bar.finish(status: "Listo!"){reset}      -> Lleva al 100% y cierra.
-      * {bright_white}bar.current{reset} -> Progreso actual.
-      * {bright_white}bar.total{reset}   -> Total maximo.
+    Barra de progreso fluida con soporte para status dinámico protegido contra desbordes.
+    - {cyan}Uso con bloque:{reset}
+      {bright_white}GRmenu.progress(100, title: "Instalando", color: "rgb") do |bar|{reset}
+      {bright_white}  bar.advance(25, status: "Descargando paquetes..."){reset}
+      {bright_white}  bar.set(100, status: "Completado con exito"){reset}
+      {bright_white}end{reset}
 
   {bright_green}* GRmenu.spinner(mensaje = "Cargando...", color: "cyan", delay: 0.08, &bloque){reset}
-    Indicador giratorio animado mientras se ejecuta el bloque (soporta color: "rgb").
-    - {cyan}mensaje:{reset} [String] Descripcion de la tarea en curso.
-    - {cyan}color:{reset}   [String] Color del spinner (soporta "rgb").
-    - {cyan}level:{reset}   [Integer 1 o 2] Brillo.
-    - {cyan}delay:{reset}   [Float] Segundos por fotograma (default: 0.08).
-    - {cyan}Retorna:{reset} El valor retornado por el bloque { &bloque }.
-    - {cyan}Manejo de errores:{reset} Muestra [OK] en verde o [ERROR] en rojo.
+    Indicador giratorio animado en hilo de ejecucion secundario mientras el bloque corre.
+    - {cyan}Uso:{reset} {bright_white}GRmenu.spinner("Conectando a base de datos...") { sleep 2 }{reset}
 
   {bright_green}* GRmenu.image(filepath, width: 40, height: nil, style: 3, color: "cyan"){reset}
     Decodifica y renderiza imagenes (PNG, JPEG, WEBP, GIF, BMP) con micro-pixeles
     ANSI TrueColor de 24 bits y escala proporcional exacta con cache instantanea.
-    - {cyan}filepath:{reset} [String] Ruta al archivo de imagen.
-    - {cyan}width:{reset}    [Integer] Ancho en columnas de la terminal (default: 40).
-    - {cyan}height:{reset}   [Integer, opcional] Alto en filas (nil = auto proporciones).
-    - {cyan}style:{reset}    [Integer 1..20] Estilo de marco exterior (nil/0 = sin marco).
-    - {cyan}color:{reset}    [String] Color del marco exterior (soporta "rgb").
-    - {cyan}center:{reset}   [Boolean] Centrado horizontal (default: true).
 
   {bright_green}* GRmenu.banner(texto, delay = 0, color: "magenta", level: 2, style: 3, font: 1){reset}
-    (Aliases: {bright_white}GRmenu.logo{reset}, {bright_white}GRmenu.message{reset})
-    - {cyan}texto:{reset} [String] Frase a convertir en arte ASCII 3D.
-    - {cyan}delay:{reset} [Float] Pausa entre lineas para animacion (0 = instantaneo).
-    - {cyan}color:{reset} [String] Color del banner (soporta "rgb").
-    - {cyan}level:{reset} [Integer 1 o 2] Brillo.
-    - {cyan}style:{reset} [Integer 1..20] Estilo de marco.
-    - {cyan}font:{reset}  [Integer 1..10] Fuente tipografica.
-
-  {bright_green}* GRmenu.div(long = nil, color = "blue", level = 1, char = "─"){reset}
-    - {cyan}long:{reset}  [Integer, opcional] Longitud de la linea (nil = terminal).
-    - {cyan}color:{reset} [String] Color de la linea divisoria (soporta "rgb").
-    - {cyan}level:{reset} [Integer 1 o 2] Brillo.
-    - {cyan}char:{reset}  [String] Caracter repetido ("─", "═", "-", "*", "~", etc.).
-
-  {bright_green}* GRmenu.clear_screen{reset} (alias: {bright_green}GRmenu.clr{reset})
-    Limpia la pantalla y scrollback con secuencias ANSI de alta velocidad.
-
-  {bright_green}* GRmenu.continue(texto = "Presiona cualquier tecla para continuar..."){reset}
-    Pausa la ejecucion y espera una sola pulsacion en modo TTY crudo.
+    Convierte cadenas en arte ASCII 3D con bordes y fuentes personalizables.
 
 {bright_magenta}═════════════════════════════════════════════════════════════════════════════════════{reset}
-{bright_yellow}[6] MODULO DE COLORES: Color / C{reset}
-{bright_magenta}═════════════════════════════════════════════════════════════════════════════════════{reset}
-  Modulo ligero sin dependencias para pintar texto con colores ANSI y TrueColor RGB.
-
-  {cyan}Metodos por color (Nivel 1 Normal / Nivel 2 Bright):{reset}
-  - {red}Color.red(str){reset}       | {bright_red}Color.bright_red(str){reset}   | {red}Color.dark_red(str){reset}
-  - {green}Color.green(str){reset}     | {bright_green}Color.bright_green(str){reset} | {green}Color.dark_green(str){reset}
-  - {yellow}Color.yellow(str){reset}    | {bright_yellow}Color.bright_yellow(str){reset}
-  - {blue}Color.blue(str){reset}      | {bright_blue}Color.bright_blue(str){reset}
-  - {magenta}Color.magenta(str){reset}   | {bright_magenta}Color.bright_magenta(str){reset}
-  - {purple}Color.purple(str){reset}    | {bright_purple}Color.bright_purple(str){reset}
-  - {pink}Color.pink(str){reset}      | {bright_pink}Color.bright_pink(str){reset}
-  - {cyan}Color.cyan(str){reset}      | {bright_cyan}Color.bright_cyan(str){reset}
-  - {aqua}Color.aqua(str){reset}      | {bright_aqua}Color.bright_aqua(str){reset}
-  - {orange}Color.orange(str){reset}    | {bright_orange}Color.bright_orange(str){reset}
-  - {white}Color.white(str){reset}     | {bright_white}Color.bright_white(str){reset}
-  - {gray}Color.gray(str){reset}      | {bright_gray}Color.bright_gray(str){reset}  (alias: Color.grey)
-  - Color.black(str)
-
-  {cyan}Modo Arcoiris RGB Dinamico:{reset}
-  - {bright_white}Color.rgb("Texto en Chroma Rainbow"){reset} -> Degrada cada letra en onda RGB.
-  - {bright_white}Color.paint("Mi Texto", "rgb"){reset}      -> Alias dinamico del modo arcoiris.
-
-  {cyan}Metodo dinamico universal:{reset}
-  {bright_white}Color.paint("Mi Texto", :cyan, 2){reset} -> Texto cian nivel 2 (brillante).
-
-  {cyan}Atajos rapidos de 1 o 2 letras:{reset}
-  {bright_white}Color.r(s){reset} (red), {bright_white}Color.g(s){reset} (green), {bright_white}Color.y(s){reset} (yellow), {bright_white}Color.bl(s){reset} (blue),
-  {bright_white}Color.mg(s){reset} (magenta), {bright_white}Color.cy(s){reset} (cyan), {bright_white}Color.w(s){reset} (white), {bright_white}Color.gr(s){reset} (gray).
-
-{bright_magenta}═════════════════════════════════════════════════════════════════════════════════════{reset}
-{bright_yellow}[7] FUENTES ASCII 3D PARA BANNERS (font: 1 al 10){reset}
-{bright_magenta}═════════════════════════════════════════════════════════════════════════════════════{reset}
-  {yellow} 1{reset} -> {bright_white}ANSI Shadow 3D (Default){reset}  {cyan}[██████╗  ██╗  ██╗]{reset}
-  {yellow} 2{reset} -> {bright_white}Slant 3D (FIGlet){reset}          {cyan}[    ____        __  __]{reset}
-  {yellow} 3{reset} -> {bright_white}Doom / Standard 3D{reset}        {cyan}[   ____      _   _]{reset}
-  {yellow} 4{reset} -> {bright_white}Graffiti Shadow 3D{reset}        {cyan}[  ,---.      ,--. ,--.]{reset}
-  {yellow} 5{reset} -> {bright_white}Small Slant / Mini 3D{reset}     {cyan}[   ___     _ _]{reset}
-  {yellow} 6{reset} -> {bright_white}Modular Pipe 3D{reset}           {cyan}[   _____    _____]{reset}
-  {yellow} 7{reset} -> {bright_white}Bubble / Round Gothic{reset}      {cyan}[    ____     _  _]{reset}
-  {yellow} 8{reset} -> {bright_white}Double-Line Wire 3D{reset}      {cyan}[  ╔═════╗  ║     ║]{reset}
-  {yellow} 9{reset} -> {bright_white}Solid Fat 3D Block{reset}       {cyan}[  ██████▄  ██   ██]{reset}
-  {yellow}10{reset} -> {bright_white}Arcade Stars Matrix{reset}       {cyan}[  ★★★★   ★   ★]{reset}
-
-{bright_magenta}═════════════════════════════════════════════════════════════════════════════════════{reset}
-{bright_yellow}[8] ESTILOS DE MARCO Y BORDES (style: 1 al 20){reset}
-{bright_magenta}═════════════════════════════════════════════════════════════════════════════════════{reset}
-  {yellow} 1{reset} -> {cyan}#####{reset} (Almohadilla / Hash)         {yellow}11{reset} -> {cyan}░░░░░{reset} (Sombreado suave)
-  {yellow} 2{reset} -> {cyan}┌───┐{reset} (Linea simple fina)          {yellow}12{reset} -> {cyan}█████{reset} (Bloque solido)
-  {yellow} 3{reset} -> {cyan}╔═══╗{reset} (Doble linea - Default)     {yellow}13{reset} -> {cyan}*****{reset} (Asteriscos)
-  {yellow} 4{reset} -> {cyan}┏━━━┓{reset} (Linea gruesa / Bold)        {yellow}14{reset} -> {cyan}+++++{reset} (Cruces)
-  {yellow} 5{reset} -> {cyan}╒═══╕{reset} (Doble horiz. simple vert.)  {yellow}15{reset} -> {cyan}====={reset} (Iguales)
-  {yellow} 6{reset} -> {cyan}╓───╖{reset} (Simple horiz. doble vert.)  {yellow}16{reset} -> {cyan}~~~~~{reset} (Ondulado)
-  {yellow} 7{reset} -> {cyan}╭───╮{reset} (Curvas redondeadas)          {yellow}17{reset} -> {cyan}-----{reset} (Guiones)
-  {yellow} 8{reset} -> {cyan}▛▀▀▀▜{reset} (Bloques outline)             {yellow}18{reset} -> {cyan}◆◆◆◆◆{reset} (Rombos / Diamantes)
-  {yellow} 9{reset} -> {cyan}▓▓▓▓▓{reset} (Sombreado oscuro)           {yellow}19{reset} -> {cyan}●○○○●{reset} (Circulos - Default Op.)
-  {yellow}10{reset} -> {cyan}▒▒▒▒▒{reset} (Sombreado medio)            {yellow}20{reset} -> {cyan}★☆☆☆★{reset} (Estrellas decoradas)
-
-{bright_magenta}═════════════════════════════════════════════════════════════════════════════════════{reset}
-{bright_yellow}[9] NAVEGACION POR TECLADO EN LOS MENUS{reset}
-{bright_magenta}═════════════════════════════════════════════════════════════════════════════════════{reset}
-  * {bright_yellow}↑ (Arriba):{reset}    Mueve el foco arriba. En el tope, salta al fondo (Snake).
-  * {bright_yellow}↓ (Abajo):{reset}     Mueve el foco abajo. En el fondo, salta al tope (Snake).
-  * {bright_yellow}← (Izquierda):{reset} En grid salta a la columna anterior; en 1 columna retrocede.
-  * {bright_yellow}→ (Derecha):{reset}   En grid salta a la columna siguiente; en 1 columna avanza.
-  * {bright_yellow}Enter:{reset}        Ejecuta la opcion seleccionada.
-  * {bright_yellow}q / Esc:{reset}      Sale del menu (o limpia la busqueda si hay texto).
-  * {bright_yellow}Backspace:{reset}    En buscador, borra la ultima letra.
-  * {bright_yellow}Ctrl+U:{reset}       En buscador, limpia toda la consulta de texto.
-
-{bright_magenta}═════════════════════════════════════════════════════════════════════════════════════{reset}
-{bright_yellow}[10] EJEMPLOS DE USO RAPIDO (SNIPPETS){reset}
+{bright_yellow}[7] SISTEMA DE TEMAS .gr (CSS PARA TUI) Y EXPORTACION{reset}
 {bright_magenta}═════════════════════════════════════════════════════════════════════════════════════{reset}
 
-  {cyan}1. Menu con Buscador en Vivo y Modo RGB:{reset}
-     {bright_white}menu = GRmenu.new([:opcion1, :opcion2], banner: "APP", search: true){reset}
-     {bright_white}menu.set_style.banner("rgb"){reset}
-     {bright_white}menu.set_style.border("rgb"){reset}
-     {bright_white}menu.draw{reset}
+  {cyan}1. Temas Predefinidos Disponibles:{reset}
+     {bright_white}GRmenu.theme(:neon_red){reset}   # Rojo neon vibrante con bordes dobles
+     {bright_white}GRmenu.theme(:cyberpunk){reset}  # Neones cian, amarillo y Chroma RGB animado
+     {bright_white}GRmenu.theme(:matrix){reset}     # Verdes fosforescentes estilo Hacker
+     {bright_white}GRmenu.theme(:dracula){reset}    # Morados oscuros, rosas y cian
+     {bright_white}GRmenu.theme(:nord){reset}       # Azules articos y tonos frios escandinavos
+     {bright_white}GRmenu.theme(:monokai){reset}    # Paleta calida amarilla, magenta y naranja
+     {bright_white}GRmenu.theme(:sunset){reset}     # Degradados rojo fuego, naranja y dorado
 
-  {cyan}2. Seleccion Multiple de Paquetes:{reset}
-     {bright_white}items = ["PostgreSQL 16", "Redis 7.2", "Nginx"]{reset}
-     {bright_white}elegidos = GRmenu.checkbox(items, title: "Instalador", color: "rgb"){reset}
+  {cyan}2. Carga de Archivos .gr Externos:{reset}
+     {bright_white}GRmenu.import_config("ruta/mi_tema.gr"){reset}
 
-  {cyan}3. Control Deslizante de Memoria:{reset}
-     {bright_white}ram = GRmenu.slider("Memoria RAM", min: 1, max: 64, default: 16, unit: "GB"){reset}
+  {cyan}3. Exportar Tema Activo a Archivo .gr desde Ruby:{reset}
+     {bright_white}menu.export_theme("mi_tema.gr"){reset}
+     {bright_white}GRmenu.export_config("mi_tema.gr"){reset}
 
-  {cyan}4. Barra de Progreso con Status en Vivo:{reset}
-     {bright_white}GRmenu.progress(100, title: "Descargando", color: "rgb") do |bar|{reset}
-     {bright_white}  10.times { bar.advance(10, status: "Descargando bloques...") }{reset}
-     {bright_white}end{reset}
+  {cyan}4. Extraer Tema desde un Script de Ruby (sin bucles interactivos):{reset}
+     {bright_white}GRmenu.export_from_file("mi_app.rb", "tema_extraido.gr"){reset}
+
+  {cyan}5. Exportar Tema desde Consola / CLI (Banderas automaticas):{reset}
+     # Al pasar -theme a tu script, exporta a .gr y sale inmediatamente:
+     {bright_white}$ ruby mi_script.rb -theme{reset}
+     {bright_white}$ ruby mi_script.rb -theme -o tema_personalizado.gr{reset}
+
+     # Exportar mediante one-liner sin modificar tu script:
+     {bright_white}$ ruby -r./GRmenu -e 'GRmenu.export_from_file("mi_script.rb", "tema.gr")'{reset}
+
+  {cyan}6. CSS Inline en el mismo Codigo Ruby (Estilo <style> con <<-GR):{reset}
+     # Puedes inyectar bloques CSS directamente en tu script sin archivos .gr externos:
+     {bright_white}menu.style(<<-GR){reset}
+       {white}<<menu{reset}
+         {white}style:: 3{reset}
+         {white}animate:: fade{reset}
+         {white}desc_prefix:: ->{reset}
+         {white}border:: red:2{reset}
+         {white}focus:: yellow:2{reset}
+         {white}title:: red:2{reset}
+         {white}banner:: red:2{reset}
+         {white}subtitle:: cyan:1{reset}
+       {white}>>{reset}
+     {bright_white}GR{reset}
+
+  {cyan}7. Especificacion Completa de Bloques en un Archivo .gr:{reset}
+     {gray}GRmenu::config<-1->{reset}
+     {white}@theme:: "NombreDelTema"{reset}
+     {white}@author:: "TuNombre"{reset}
+     {white}@version:: "1.0"{reset}
+
+     {cyan}<<menu{reset}
+       {white}style:: 3{reset}                # Estilo de marco 1..20
+       {white}banner_style:: 3{reset}         # Estilo de marco del banner 1..20
+       {white}font:: 1{reset}                 # Fuente tipografica 3D 1..10
+       {white}animate:: diagonal{reset}       # diagonal, linear, fade, rgb o false
+       {white}center:: true{reset}            # Centrado en consola (true / false)
+       {white}desc_prefix:: [i]{reset}        # Prefijo de tooltip ("[i]", "*", "->")
+       {white}border:: red:2{reset}           # color:brillo (soporta "rgb:2")
+       {white}title:: red:2{reset}
+       {white}focus:: yellow:2{reset}
+       {white}options:: white:1{reset}
+       {white}banner:: red:2{reset}
+       {white}subtitle:: cyan:1{reset}
+       {white}divider:: red:1{reset}
+     {cyan}>>{reset}
+
+     {cyan}<<table{reset}
+       {white}style:: 3{reset}                # Estilo de marco 1..20
+       {white}border_color:: red:2{reset}     # Color del borde exterior y separadores
+       {white}header_color:: yellow:2{reset}  # Color de los titulos de columna
+       {white}selected_row:: green:2{reset}  # Color de la fila con foco activo
+       {white}row_color:: white:1{reset}      # Color de filas regulares
+       {white}zebra_striping:: true{reset}    # Alternar brillo tenue en filas pares
+       {white}page_size:: 8{reset}            # Filas visibles antes de scroll
+     {cyan}>>{reset}
+
+     {cyan}<<card{reset}
+       {white}style:: 7{reset}                # Estilo de marco 1..20 (curvas)
+       {white}border_color:: cyan:2{reset}
+       {white}title_color:: yellow:2{reset}
+       {white}content_color:: white:1{reset}
+     {cyan}>>{reset}
+
+     {cyan}<<slider{reset}
+       {white}style:: 3{reset}
+       {white}color:: rgb:2{reset}
+       {white}fill_char:: █{reset}
+       {white}empty_char:: ░{reset}
+     {cyan}>>{reset}
+
+     {cyan}<<checkbox{reset}
+       {white}style:: 3{reset}
+       {white}color:: rgb:2{reset}
+       {white}checked_mark:: [X]{reset}
+       {white}unchecked_mark:: [ ]{reset}
+     {cyan}>>{reset}
+
+{bright_magenta}═════════════════════════════════════════════════════════════════════════════════════{reset}
+{bright_yellow}[8] MODULO DE COLORES: Color / C Y PERSONALIZACION HEXADECIMAL{reset}
+{bright_magenta}═════════════════════════════════════════════════════════════════════════════════════{reset}
+  {cyan}1. Como Usar Colores Personalizados (Hexadecimal y Neon):{reset}
+     El motor soporta de forma 100% nativa TrueColor (24 bits) en tres vias:
+
+     {white}A) En Codigo Normal con menu.set_style (Encadenamiento Fluido / Chaining):{reset}
+        {bright_white}menu.set_style.border("#FF0055").title("#00F5FF").focus("gold"){reset}
+        {bright_white}menu.set_style.banner("neon_emerald").subtitle("#A6E3A1"){reset}
+
+     {white}B) En CSS Inline tipo <style> (menu.style <<-GR ... GR):{reset}
+        {bright_white}menu.style(<<-GR){reset}
+          {white}border:: #FF0055:1{reset}
+          {white}title:: #00F5FF:2{reset}
+          {white}focus:: gold:2{reset}
+          {white}banner:: neon_cyan:2{reset}
+        {bright_white}GR{reset}
+
+     {white}C) En Archivos de Tema .gr (ej. mis_colores.gr):{reset}
+        {white}border:: #FF0055{reset}           # Codigo hex 6 digitos
+        {white}title:: #0FF{reset}                # Codigo hex 3 digitos shorthand
+        {white}focus:: neon_gold:2{reset}         # Nombre neon con nivel de brillo
+        {white}options:: silver:1{reset}          # Nombre normal con nivel de brillo
+
+     {white}D) Directamente con el modulo Color / C:{reset}
+        {bright_white}puts Color.hex("#FF0055", "Texto Carmesi Hex"){reset}
+        {bright_white}puts Color.gold("Texto Dorado Directo"){reset}
+        {bright_white}puts Color.neon_emerald("Texto Esmeralda Neon"){reset}
+
+  {cyan}2. Catalogo de 90+ Colores (Cada uno con version Normal y version Neon):{reset}
+     {bright_yellow}Metales y Joyas:{reset}
+     - gold / neon_gold         | silver / neon_silver     | platinum / neon_platinum
+     - bronze / neon_bronze     | copper / neon_copper     | ruby / neon_ruby
+     - emerald / neon_emerald   | sapphire / neon_sapphire
+
+     {bright_yellow}Fuego, Atardecer y Calidos:{reset}
+     - crimson / neon_crimson   | scarlet / neon_scarlet   | coral / neon_coral
+     - amber / neon_amber       | peach / neon_peach       | orange / neon_orange
+     - red / neon_red           | yellow / neon_yellow
+
+     {bright_yellow}Naturaleza, Menta y Verdes:{reset}
+     - lime / neon_lime         | mint / neon_mint         | jade / neon_jade
+     - forest / neon_forest     | teal / neon_teal         | green / neon_green
+
+     {bright_yellow}Agua, Cielo y Tonos Frios:{reset}
+     - turquoise / neon_turquoise | sky / neon_sky         | azure / neon_azure
+     - cobalt / neon_cobalt     | ice / neon_ice           | cyan / neon_cyan
+     - aqua / neon_aqua         | blue / neon_blue
+
+     {bright_yellow}Pasteles, Morados y Rosas:{reset}
+     - lavender / neon_lavender | mauve / neon_mauve       | violet / neon_violet
+     - indigo / neon_indigo     | fuchsia / neon_fuchsia   | rose / neon_rose
+     - hot_pink / neon_hot_pink | pink / neon_pink         | purple / neon_purple
+     - magenta / neon_magenta
+
+     {bright_yellow}Terminal, Hacker y Monitores:{reset}
+     - matrix / neon_matrix     | charcoal / neon_charcoal | white / neon_white
+     - gray                     | black
+
+  {cyan}3. Modo Dinamico Arcoiris (Chroma Loop):{reset}
+     - {bright_yellow}rgb{reset} / {bright_yellow}rainbow{reset} / {bright_yellow}chroma{reset} -> Espectro animado continuo a 30 FPS en vivo.
+
+{bright_magenta}═════════════════════════════════════════════════════════════════════════════════════{reset}
+{bright_yellow}[9] FUENTES ASCII 3D PARA BANNERS (font: 1 al 10){reset}
+{bright_magenta}═════════════════════════════════════════════════════════════════════════════════════{reset}
+  {yellow} 1{reset} -> ANSI Shadow 3D (Default)   {yellow} 6{reset} -> Modular Pipe 3D
+  {yellow} 2{reset} -> Slant 3D (FIGlet)           {yellow} 7{reset} -> Bubble / Round Gothic
+  {yellow} 3{reset} -> Doom / Standard 3D         {yellow} 8{reset} -> Double-Line Wire 3D
+  {yellow} 4{reset} -> Graffiti Shadow 3D         {yellow} 9{reset} -> Solid Fat 3D Block
+  {yellow} 5{reset} -> Small Slant / Mini 3D      {yellow}10{reset} -> Arcade Stars Matrix
+
+{bright_magenta}═════════════════════════════════════════════════════════════════════════════════════{reset}
+{bright_yellow}[10] ESTILOS DE MARCO Y BORDES (style: 1 al 20){reset}
+{bright_magenta}═════════════════════════════════════════════════════════════════════════════════════{reset}
+  {yellow} 1{reset} -> ##### (Hash)              {yellow}11{reset} -> ░░░░░ (Sombreado suave)
+  {yellow} 2{reset} -> ┌───┐ (Linea simple)       {yellow}12{reset} -> █████ (Bloque solido)
+  {yellow} 3{reset} -> ╔═══╗ (Doble linea)        {yellow}13{reset} -> ***** (Asteriscos)
+  {yellow} 4{reset} -> ┏━━━┓ (Linea gruesa)       {yellow}14{reset} -> +++++ (Cruces)
+  {yellow} 5{reset} -> ╒═══╕ (Doble horiz.)       {yellow}15{reset} -> ===== (Iguales)
+  {yellow} 6{reset} -> ╓───╖ (Simple horiz.)      {yellow}16{reset} -> ~~~~~ (Ondulado)
+  {yellow} 7{reset} -> ╭───╮ (Curvas)             {yellow}17{reset} -> ----- (Guiones)
+  {yellow} 8{reset} -> ▛▀▀▀▜ (Bloques)            {yellow}18{reset} -> ◆◆◆◆◆ (Diamantes)
+  {yellow} 9{reset} -> ▓▓▓▓▓ (Sombreado oscuro)   {yellow}19{reset} -> ●○○○● (Circulos)
+  {yellow}10{reset} -> ▒▒▒▒▒ (Sombreado medio)    {yellow}20{reset} -> ★☆☆☆★ (Estrellas)
+
+{bright_magenta}═════════════════════════════════════════════════════════════════════════════════════{reset}
+{bright_yellow}[11] NAVEGACION POR TECLADO Y ATAJOS{reset}
+{bright_magenta}═════════════════════════════════════════════════════════════════════════════════════{reset}
+  * {bright_yellow}↑ (Arriba):{reset}      Mover foco arriba. En el tope salta al fondo (Snake loop).
+  * {bright_yellow}↓ (Abajo):{reset}       Mover foco abajo. En el fondo salta al tope (Snake loop).
+  * {bright_yellow}← / →:{reset}          En grids 2D cambia de columna; en sliders ajusta valor.
+  * {bright_yellow}Enter:{reset}          Ejecuta la opcion seleccionada o confirma modal/tabla.
+  * {bright_yellow}s:{reset}              En tablas interactivas, ordena por la columna activa.
+  * {bright_yellow}Espacio:{reset}        En casillas de verificacion (checkbox), marca/desmarca.
+  * {bright_yellow}a / n / i:{reset}      En checkbox: (a) marcar todos, (n) ninguno, (i) invertir.
+  * {bright_yellow}q / Esc:{reset}        Sale del menu, cancela modal o limpia buscador.
+  * {bright_yellow}Backspace:{reset}      En buscadores e inputs, borra la ultima letra.
+  * {bright_yellow}Ctrl+U:{reset}         En buscadores e inputs, limpia toda la linea escrita.
+
 {bright_blue}─────────────────────────────────────────────────────────────────────────────────────{reset}

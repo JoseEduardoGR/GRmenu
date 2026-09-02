@@ -30,8 +30,36 @@ class GRmenu
   end
 
   COLORS  = load_json_data('colors.json').freeze
-  BORDERS = load_json_data('borders.json').transform_keys(&:to_i).transform_values { |v| v.transform_keys(&:to_sym) }.freeze
+  BORDERS = load_json_data('borders.json').transform_keys(&:to_i).transform_values { |v| v.is_a?(Hash) ? v.transform_keys(&:to_sym) : { h: v.to_s, v: v.to_s, tl: v.to_s, tr: v.to_s, bl: v.to_s, br: v.to_s } }.freeze
   FONTS   = load_json_data('fonts.json').transform_keys(&:to_i).freeze
+
+  BASE_RGB = COLORS.each_with_object({}) do |(name, val), h|
+    next if name == "reset"
+    code = val.is_a?(Hash) ? (val["2"] || val[2] || val["1"] || val[1]) : val.to_s
+    if code =~ /38;2;(\d+);(\d+);(\d+)/
+      h[name] = [$1.to_i, $2.to_i, $3.to_i]
+    elsif code == "90m" || code == "30m"
+      h[name] = [100, 100, 100]
+    elsif code == "91m" || code == "31m"
+      h[name] = [255, 60, 60]
+    elsif code == "92m" || code == "32m"
+      h[name] = [60, 255, 60]
+    elsif code == "93m" || code == "33m"
+      h[name] = [255, 255, 60]
+    elsif code == "94m" || code == "34m"
+      h[name] = [60, 120, 255]
+    elsif code == "95m" || code == "35m"
+      h[name] = [255, 60, 255]
+    elsif code == "96m" || code == "36m"
+      h[name] = [60, 255, 255]
+    elsif code == "97m" || code == "37m"
+      h[name] = [250, 250, 250]
+    elsif code =~ /38;5;(\d+)/
+      h[name] = [150, 150, 150]
+    else
+      h[name] = [220, 220, 220]
+    end
+  end.freeze
 
   FONT_1  = FONTS[1] || {}
   FONT_2  = FONTS[2] || {}
@@ -53,8 +81,26 @@ class GRmenu
   end
 
   def self.ansi_color(color_name, level = 1)
-    name = color_name.to_s.downcase
+    name = color_name.to_s.downcase.strip
+    if name.include?(":")
+      parts = name.split(":")
+      name = parts[0].strip
+      level = parts[1].to_i if parts[1] && !parts[1].empty?
+    end
     return rgb_color(0.0) if name == "rgb" || name == "rainbow" || name == "chroma"
+    if name =~ /\A#?([0-9a-f]{6})\z/i
+      hex = $1
+      r = hex[0..1].to_i(16)
+      g = hex[2..3].to_i(16)
+      b = hex[4..5].to_i(16)
+      return "\e[38;2;#{r};#{g};#{b}m"
+    elsif name =~ /\A#?([0-9a-f]{3})\z/i
+      hex = $1
+      r = (hex[0] * 2).to_i(16)
+      g = (hex[1] * 2).to_i(16)
+      b = (hex[2] * 2).to_i(16)
+      return "\e[38;2;#{r};#{g};#{b}m"
+    end
     lvl_str = level.to_s
     code_raw = COLORS.dig(name, lvl_str) || COLORS.dig(name, level.to_i) || COLORS[name]
     return "\e[#{code_raw}" if code_raw
@@ -83,7 +129,20 @@ class GRmenu
       cyan:           { 1 => "\e[36m", 2 => "\e[96m" },
       aqua:           { 1 => "\e[38;5;45m",  2 => "\e[38;5;51m" },
       orange:         { 1 => "\e[38;5;208m", 2 => "\e[38;5;214m" },
-      white:          { 1 => "\e[37m", 2 => "\e[97m" }
+      white:          { 1 => "\e[37m", 2 => "\e[97m" },
+      neon_red:       { 1 => "\e[38;2;230;10;50m", 2 => "\e[38;2;255;7;58;1m" },
+      neon_green:     { 1 => "\e[38;2;40;220;20m", 2 => "\e[38;2;57;255;20;1m" },
+      neon_cyan:      { 1 => "\e[38;2;0;210;255m", 2 => "\e[38;2;0;245;255;1m" },
+      neon_blue:      { 1 => "\e[38;2;0;150;255m", 2 => "\e[38;2;0;191;255;1m" },
+      neon_pink:      { 1 => "\e[38;2;230;10;210m", 2 => "\e[38;2;255;16;240;1m" },
+      neon_yellow:    { 1 => "\e[38;2;230;200;0m", 2 => "\e[38;2;255;235;0;1m" },
+      neon_orange:    { 1 => "\e[38;2;240;80;0m", 2 => "\e[38;2;255;105;0;1m" },
+      neon_purple:    { 1 => "\e[38;2;160;0;220m", 2 => "\e[38;2;191;0;255;1m" },
+      neon_magenta:   { 1 => "\e[38;2;220;0;220m",   2 => "\e[38;2;255;0;255;1m" },
+      neon_aqua:      { 1 => "\e[38;2;0;220;210m",   2 => "\e[38;2;0;255;230;1m" },
+      neon_lime:      { 1 => "\e[38;2;120;240;0m",   2 => "\e[38;2;170;255;0;1m" },
+      neon_white:     { 1 => "\e[38;2;220;230;255m", 2 => "\e[38;2;255;255;255;1m" },
+      neon:           { 1 => "\e[38;2;230;10;50m", 2 => "\e[38;2;255;7;58;1m" }
     }.freeze
 
     module_function
@@ -93,7 +152,7 @@ class GRmenu
       if c_str == "rgb" || c_str == "rainbow" || c_str == "chroma"
         return rgb(text)
       end
-      code = CODES.dig(color_name.to_sym, level) || "\e[37m"
+      code = CODES.dig(color_name.to_sym, level) || GRmenu.ansi_color(color_name, level) || "\e[37m"
       "#{code}#{text}#{RESET}"
     end
 
@@ -174,6 +233,19 @@ class GRmenu
     def bright_gray(s);    paint(s, :gray, 2);    end
     def grey(s);           gray(s);               end
 
+    def neon_red(s);       paint(s, :neon_red, 2);    end
+    def neon_green(s);     paint(s, :neon_green, 2);  end
+    def neon_cyan(s);      paint(s, :neon_cyan, 2);   end
+    def neon_blue(s);      paint(s, :neon_blue, 2);   end
+    def neon_pink(s);      paint(s, :neon_pink, 2);   end
+    def neon_yellow(s);    paint(s, :neon_yellow, 2); end
+    def neon_orange(s);    paint(s, :neon_orange, 2); end
+    def neon_purple(s);    paint(s, :neon_purple, 2); end
+    def neon_magenta(s);   paint(s, :neon_magenta, 2); end
+    def neon_aqua(s);      paint(s, :neon_aqua, 2);    end
+    def neon_lime(s);      paint(s, :neon_lime, 2);    end
+    def neon_white(s);     paint(s, :neon_white, 2);   end
+
     def r(s);  bright_red(s);     end
     def dr(s); dark_red(s);       end
     def g(s);  bright_green(s);   end
@@ -183,6 +255,26 @@ class GRmenu
     def cy(s); bright_cyan(s);    end
     def mg(s); bright_magenta(s); end
     def bl(s); bright_blue(s);    end
+
+    def hex(code, text)
+      c = GRmenu.ansi_color(code.to_s)
+      "#{c}#{text}#{RESET}"
+    end
+
+    def respond_to_missing?(method_name, include_private = false)
+      GRmenu::COLORS.key?(method_name.to_s) || super
+    end
+
+    def method_missing(method_name, *args, &block)
+      m_str = method_name.to_s
+      if GRmenu::COLORS.key?(m_str)
+        text = args[0].to_s
+        lvl = args[1] || 2
+        paint(text, m_str, lvl)
+      else
+        super
+      end
+    end
   end
   C = Color
 
@@ -596,6 +688,9 @@ class GRmenu
         lines << Color.rgb("#{border_cfg[:tl]}#{top_fill}#{border_cfg[:tr]}", tick)
         if @title && !@title.empty?
           t_str = @title.to_s
+          if GRmenu.display_width(t_str) > inner_w
+            t_str = t_str[0...[inner_w - 3, 1].max] + "..."
+          end
           pad_t = [inner_w - GRmenu.display_width(t_str), 0].max
           l_p = " " * (pad_t / 2)
           r_p = " " * (pad_t - (pad_t / 2))
@@ -612,6 +707,9 @@ class GRmenu
         lines << "#{Color.rgb(v_l, tick)} #{bar_line} #{Color.rgb(v_r, tick)}"
         if @status && !@status.empty?
           st_str = @status.to_s
+          if GRmenu.display_width(st_str) > inner_w
+            st_str = st_str[0...[inner_w - 3, 1].max] + "..."
+          end
           pad_st = [inner_w - GRmenu.display_width(st_str), 0].max
           st_line = st_str + (" " * pad_st)
           lines << "#{Color.rgb(v_l, tick)} #{Color.gray(st_line)} #{Color.rgb(v_r, tick)}"
@@ -628,6 +726,9 @@ class GRmenu
         lines << "#{color_code}#{border_cfg[:tl]}#{top_fill}#{border_cfg[:tr]}#{reset_code}"
         if @title && !@title.empty?
           t_str = @title.to_s
+          if GRmenu.display_width(t_str) > inner_w
+            t_str = t_str[0...[inner_w - 3, 1].max] + "..."
+          end
           pad_t = [inner_w - GRmenu.display_width(t_str), 0].max
           l_p = " " * (pad_t / 2)
           r_p = " " * (pad_t - (pad_t / 2))
@@ -637,6 +738,9 @@ class GRmenu
         lines << "#{color_code}#{v_l}#{reset_code} #{color_code}#{bar_line}#{reset_code} #{color_code}#{v_r}#{reset_code}"
         if @status && !@status.empty?
           st_str = @status.to_s
+          if GRmenu.display_width(st_str) > inner_w
+            st_str = st_str[0...[inner_w - 3, 1].max] + "..."
+          end
           pad_st = [inner_w - GRmenu.display_width(st_str), 0].max
           st_line = st_str + (" " * pad_st)
           lines << "#{color_code}#{v_l}#{reset_code} #{Color.gray(st_line)} #{color_code}#{v_r}#{reset_code}"
@@ -748,20 +852,24 @@ class GRmenu
       right_p = " " * (pad_total - (pad_total / 2))
       btn_formatted_line = "#{left_p}#{btn_yes}      #{btn_no}#{right_p}"
 
-      pad_q = [inner_w - display_width(question), 0].max
+      q_clean = question.to_s
+      if display_width(q_clean) > inner_w
+        q_clean = q_clean[0...[inner_w - 3, 1].max] + "..."
+      end
+      pad_q = [inner_w - display_width(q_clean), 0].max
       q_left = " " * (pad_q / 2)
       q_right = " " * (pad_q - (pad_q / 2))
 
       lines = []
       if is_rgb
         lines << Color.rgb("#{border_cfg[:tl]}#{top_fill}#{border_cfg[:tr]}")
-        lines << "#{Color.rgb(v_l)} #{q_left}#{question}#{q_right} #{Color.rgb(v_r)}"
+        lines << "#{Color.rgb(v_l)} #{q_left}#{q_clean}#{q_right} #{Color.rgb(v_r)}"
         lines << "#{Color.rgb(v_l)} #{' ' * inner_w} #{Color.rgb(v_r)}"
         lines << "#{Color.rgb(v_l)} #{btn_formatted_line} #{Color.rgb(v_r)}"
         lines << Color.rgb("#{border_cfg[:bl]}#{bot_fill}#{border_cfg[:br]}")
       else
         lines << "#{color_code}#{border_cfg[:tl]}#{top_fill}#{border_cfg[:tr]}#{reset_code}"
-        lines << "#{color_code}#{v_l}#{reset_code} #{q_left}#{question}#{q_right} #{color_code}#{v_r}#{reset_code}"
+        lines << "#{color_code}#{v_l}#{reset_code} #{q_left}#{q_clean}#{q_right} #{color_code}#{v_r}#{reset_code}"
         lines << "#{color_code}#{v_l}#{reset_code} #{' ' * inner_w} #{color_code}#{v_r}#{reset_code}"
         lines << "#{color_code}#{v_l}#{reset_code} #{btn_formatted_line} #{color_code}#{v_r}#{reset_code}"
         lines << "#{color_code}#{border_cfg[:bl]}#{bot_fill}#{border_cfg[:br]}#{reset_code}"
@@ -837,24 +945,31 @@ class GRmenu
 
     render_input = lambda do
       display_str = password ? ("*" * text.length) : text
+      avail_inp_w = [inner_w - 4, 4].max
+      if display_width(display_str) > avail_inp_w
+        display_str = "..." + display_str[-[avail_inp_w - 3, 1].max..-1]
+      end
       input_raw = "> #{display_str}█"
-      pad_in = [inner_w - display_width(input_raw), 0].max
-      input_padded = input_raw + (" " * pad_in)
+      input_padded = pad_to_width(input_raw, inner_w)
 
-      pad_p = [inner_w - display_width(prompt_text), 0].max
+      p_clean = prompt_text.to_s
+      if display_width(p_clean) > inner_w
+        p_clean = p_clean[0...[inner_w - 3, 1].max] + "..."
+      end
+      pad_p = [inner_w - display_width(p_clean), 0].max
       p_left = " " * (pad_p / 2)
       p_right = " " * (pad_p - (pad_p / 2))
 
       lines = []
       if is_rgb
         lines << Color.rgb("#{border_cfg[:tl]}#{top_fill}#{border_cfg[:tr]}")
-        lines << "#{Color.rgb(v_l)} #{Color.bright_yellow(p_left + prompt_text + p_right)} #{Color.rgb(v_r)}"
+        lines << "#{Color.rgb(v_l)} #{Color.bright_yellow(p_left + p_clean + p_right)} #{Color.rgb(v_r)}"
         lines << "#{Color.rgb(v_l)} #{' ' * inner_w} #{Color.rgb(v_r)}"
         lines << "#{Color.rgb(v_l)} #{Color.bright_white(input_padded)} #{Color.rgb(v_r)}"
         lines << Color.rgb("#{border_cfg[:bl]}#{bot_fill}#{border_cfg[:br]}")
       else
         lines << "#{color_code}#{border_cfg[:tl]}#{top_fill}#{border_cfg[:tr]}#{reset_code}"
-        lines << "#{color_code}#{v_l}#{reset_code} #{Color.bright_yellow(p_left + prompt_text + p_right)} #{color_code}#{v_r}#{reset_code}"
+        lines << "#{color_code}#{v_l}#{reset_code} #{Color.bright_yellow(p_left + p_clean + p_right)} #{color_code}#{v_r}#{reset_code}"
         lines << "#{color_code}#{v_l}#{reset_code} #{' ' * inner_w} #{color_code}#{v_r}#{reset_code}"
         lines << "#{color_code}#{v_l}#{reset_code} #{Color.bright_white(input_padded)} #{color_code}#{v_r}#{reset_code}"
         lines << "#{color_code}#{border_cfg[:bl]}#{bot_fill}#{border_cfg[:br]}#{reset_code}"
@@ -903,9 +1018,12 @@ class GRmenu
     text
   end
 
-  def self.checkbox(items, title: "Selección Múltiple", subtitle: "Espacio: Marcar/Desmarcar | a: Todos | n: Ninguno | i: Invertir | Enter: Confirmar", color: "cyan", style: 3, page_size: 8, min_width: nil, preselected: [])
+  def self.checkbox(items, title: "Selección Múltiple", subtitle: "Espacio: Marcar/Desmarcar | a: Todos | n: Ninguno | i: Invertir | Enter: Confirmar", color: nil, style: nil, page_size: nil, min_width: nil, preselected: [])
+    cb_sec = (@@global_theme.is_a?(Hash) && @@global_theme.dig(:sections, "checkbox")) || {}
     item_list = items.is_a?(Array) ? items : Array(items)
     return [] if item_list.empty?
+    chk_mark = cb_sec["checked_mark"] || "[X]"
+    unchk_mark = cb_sec["unchecked_mark"] || "[ ]"
 
     parsed_items = item_list.map do |it|
       case it
@@ -936,8 +1054,10 @@ class GRmenu
     index = 0
     rgb_tick = 0.0
     drawn_lines = 0
-    is_rgb = (color.to_s.downcase == "rgb" || color.to_s.downcase == "rainbow" || color.to_s.downcase == "chroma")
-    border_cfg = BORDERS[style] || BORDERS[3]
+    cb_color = (color || cb_sec["color"] || "cyan").to_s
+    style_num = (style || cb_sec["style"] || 3).to_i
+    is_rgb = (cb_color.downcase == "rgb" || cb_color.downcase == "rainbow" || cb_color.downcase == "chroma")
+    border_cfg = BORDERS[style_num] || BORDERS[3]
     h_top = border_cfg[:ht] || border_cfg[:h]
     h_bot = border_cfg[:hb] || border_cfg[:h]
     v_l = border_cfg[:vl] || border_cfg[:v]
@@ -972,8 +1092,10 @@ class GRmenu
       if is_rgb
         lines << Color.rgb("#{border_cfg[:tl]}#{top_fill}#{border_cfg[:tr]}", rgb_tick)
         unless title.to_s.empty?
-          pad_t = [inner_w - display_width(title), 0].max
-          t_line = (" " * (pad_t / 2)) + title + (" " * (pad_t - (pad_t / 2)))
+          t_clean = title.to_s
+          t_clean = t_clean[0...[inner_w - 3, 1].max] + "..." if display_width(t_clean) > inner_w
+          pad_t = [inner_w - display_width(t_clean), 0].max
+          t_line = (" " * (pad_t / 2)) + t_clean + (" " * (pad_t - (pad_t / 2)))
           lines << "#{Color.rgb(v_l, rgb_tick)} #{Color.rgb(t_line, rgb_tick + 0.2)} #{Color.rgb(v_r, rgb_tick)}"
           lines << Color.rgb("#{v_l}#{mid_fill}#{v_r}", rgb_tick)
         end
@@ -984,11 +1106,13 @@ class GRmenu
         end
         (start_idx..end_idx).each do |i|
           it = parsed_items[i]
-          mark = it[:checked] ? "[X]" : "[ ]"
+          mark = it[:checked] ? chk_mark : unchk_mark
           is_active = (i == index)
-          raw_line = "#{is_active ? '> ' : '  '}#{mark} #{it[:name]}"
-          pad_l = [inner_w - display_width(raw_line), 0].max
-          line_padded = raw_line + (" " * pad_l)
+          max_name_w = [inner_w - display_width(mark) - 4, 4].max
+          name_str = it[:name].to_s
+          name_str = name_str[0...[max_name_w - 3, 1].max] + "..." if display_width(name_str) > max_name_w
+          raw_line = "#{is_active ? '> ' : '  '}#{mark} #{name_str}"
+          line_padded = pad_to_width(raw_line, inner_w)
           if is_active
             lines << "#{Color.rgb(v_l, rgb_tick)} #{Color.rgb(line_padded, rgb_tick + 0.4)} #{Color.rgb(v_r, rgb_tick)}"
           elsif it[:checked]
@@ -1005,18 +1129,22 @@ class GRmenu
         end
         unless subtitle.to_s.empty?
           lines << Color.rgb("#{v_l}#{mid_fill}#{v_r}", rgb_tick)
-          pad_sub = [inner_w - display_width(subtitle), 0].max
-          sub_padded = (" " * (pad_sub / 2)) + subtitle + (" " * (pad_sub - (pad_sub / 2)))
+          s_clean = subtitle.to_s
+          s_clean = s_clean[0...[inner_w - 3, 1].max] + "..." if display_width(s_clean) > inner_w
+          pad_sub = [inner_w - display_width(s_clean), 0].max
+          sub_padded = (" " * (pad_sub / 2)) + s_clean + (" " * (pad_sub - (pad_sub / 2)))
           lines << "#{Color.rgb(v_l, rgb_tick)} #{Color.gray(sub_padded)} #{Color.rgb(v_r, rgb_tick)}"
         end
         lines << Color.rgb("#{border_cfg[:bl]}#{bot_fill}#{border_cfg[:br]}", rgb_tick)
       else
-        color_code = ansi_color(color, 2)
+        color_code = ansi_color(cb_color, 2)
         reset_code = ansi_reset
         lines << "#{color_code}#{border_cfg[:tl]}#{top_fill}#{border_cfg[:tr]}#{reset_code}"
         unless title.to_s.empty?
-          pad_t = [inner_w - display_width(title), 0].max
-          t_line = (" " * (pad_t / 2)) + title + (" " * (pad_t - (pad_t / 2)))
+          t_clean = title.to_s
+          t_clean = t_clean[0...[inner_w - 3, 1].max] + "..." if display_width(t_clean) > inner_w
+          pad_t = [inner_w - display_width(t_clean), 0].max
+          t_line = (" " * (pad_t / 2)) + t_clean + (" " * (pad_t - (pad_t / 2)))
           lines << "#{color_code}#{v_l}#{reset_code} #{Color.bright_yellow(t_line)} #{color_code}#{v_r}#{reset_code}"
           lines << "#{color_code}#{v_l}#{top_fill}#{v_r}#{reset_code}"
         end
@@ -1027,15 +1155,17 @@ class GRmenu
         end
         (start_idx..end_idx).each do |i|
           it = parsed_items[i]
-          mark = it[:checked] ? "[X]" : "[ ]"
+          mark = it[:checked] ? chk_mark : unchk_mark
           is_active = (i == index)
-          raw_line = "#{is_active ? '> ' : '  '}#{mark} #{it[:name]}"
-          pad_l = [inner_w - display_width(raw_line), 0].max
-          line_padded = raw_line + (" " * pad_l)
+          max_name_w = [inner_w - display_width(mark) - 4, 4].max
+          name_str = it[:name].to_s
+          name_str = name_str[0...[max_name_w - 3, 1].max] + "..." if display_width(name_str) > max_name_w
+          raw_line = "#{is_active ? '> ' : '  '}#{mark} #{name_str}"
+          line_padded = pad_to_width(raw_line, inner_w)
           if is_active
-            lines << "#{color_code}#{v_l}#{reset_code} #{Color.bright_green(line_padded)} #{color_code}#{v_r}#{reset_code}"
+            lines << "#{color_code}#{v_l}#{reset_code} #{Color.bright_yellow(line_padded)} #{color_code}#{v_r}#{reset_code}"
           elsif it[:checked]
-            lines << "#{color_code}#{v_l}#{reset_code} #{Color.green(line_padded)} #{color_code}#{v_r}#{reset_code}"
+            lines << "#{color_code}#{v_l}#{reset_code} #{Color.bright_green(line_padded)} #{color_code}#{v_r}#{reset_code}"
           else
             lines << "#{color_code}#{v_l}#{reset_code} #{Color.white(line_padded)} #{color_code}#{v_r}#{reset_code}"
           end
@@ -1048,8 +1178,10 @@ class GRmenu
         end
         unless subtitle.to_s.empty?
           lines << "#{color_code}#{v_l}#{top_fill}#{v_r}#{reset_code}"
-          pad_sub = [inner_w - display_width(subtitle), 0].max
-          sub_padded = (" " * (pad_sub / 2)) + subtitle + (" " * (pad_sub - (pad_sub / 2)))
+          s_clean = subtitle.to_s
+          s_clean = s_clean[0...[inner_w - 3, 1].max] + "..." if display_width(s_clean) > inner_w
+          pad_sub = [inner_w - display_width(s_clean), 0].max
+          sub_padded = (" " * (pad_sub / 2)) + s_clean + (" " * (pad_sub - (pad_sub / 2)))
           lines << "#{color_code}#{v_l}#{reset_code} #{Color.gray(sub_padded)} #{color_code}#{v_r}#{reset_code}"
         end
         lines << "#{color_code}#{border_cfg[:bl]}#{bot_fill}#{border_cfg[:br]}#{reset_code}"
@@ -1139,14 +1271,17 @@ class GRmenu
     alias_method :multiselect, :checkbox
   end
 
-  def self.slider(prompt = "Selecciona un valor:", min: 0, max: 100, step: 1, default: nil, unit: "", color: "cyan", style: 3, width: 46)
+  def self.slider(prompt = "Selecciona un valor:", min: 0, max: 100, step: 1, default: nil, unit: "", color: nil, style: nil, width: 46)
+    sl_sec = (@@global_theme.is_a?(Hash) && @@global_theme.dig(:sections, "slider")) || {}
     val = (default || min).to_f.clamp(min.to_f, max.to_f)
     step_val = [step.to_f, 0.001].max
     drawn_lines = 0
     rgb_tick = 0.0
-    is_rgb = (color.to_s.downcase == "rgb" || color.to_s.downcase == "rainbow" || color.to_s.downcase == "chroma")
+    sl_color = (color || sl_sec["color"] || "cyan").to_s
+    style_num = (style || sl_sec["style"] || 3).to_i
+    is_rgb = (sl_color.downcase == "rgb" || sl_color.downcase == "rainbow" || sl_color.downcase == "chroma")
 
-    border_cfg = BORDERS[style] || BORDERS[3]
+    border_cfg = BORDERS[style_num] || BORDERS[3]
     h_top = border_cfg[:ht] || border_cfg[:h]
     h_bot = border_cfg[:hb] || border_cfg[:h]
     v_l = border_cfg[:vl] || border_cfg[:v]
@@ -1168,14 +1303,21 @@ class GRmenu
       range_span = 1.0 if range_span <= 0
       fraction = ((val - min).to_f / range_span).clamp(0.0, 1.0)
 
-      bar_w = [inner_w - val_str.length - 5, 10].max
-      filled_len = (fraction * bar_w).round
-      empty_len = bar_w - filled_len
+      avail_bar_w = [inner_w - display_width(val_str) - 4, 6].max
+      filled_len = (fraction * avail_bar_w).round
+      empty_len = [avail_bar_w - filled_len, 0].max
 
-      pad_p = [inner_w - display_width(prompt), 0].max
-      p_line = (" " * (pad_p / 2)) + prompt + (" " * (pad_p - (pad_p / 2)))
+      p_clean = prompt.to_s
+      if display_width(p_clean) > inner_w
+        p_clean = p_clean[0...[inner_w - 3, 1].max] + "..."
+      end
+      pad_p = [inner_w - display_width(p_clean), 0].max
+      p_line = (" " * (pad_p / 2)) + p_clean + (" " * (pad_p - (pad_p / 2)))
 
-      instr = "← / → Ajustar | Enter Guardar"
+      instr = (inner_w >= 30) ? "← / → Ajustar | Enter Guardar" : "←/→: Ajustar | Enter: Ok"
+      if display_width(instr) > inner_w
+        instr = instr[0...[inner_w - 3, 1].max] + "..."
+      end
       pad_i = [inner_w - display_width(instr), 0].max
       i_line = (" " * (pad_i / 2)) + instr + (" " * (pad_i - (pad_i / 2)))
 
@@ -1188,22 +1330,24 @@ class GRmenu
         filled_part = Color.rgb("█" * filled_len, rgb_tick + 0.5)
         empty_part  = Color.gray("░" * empty_len)
         bar_raw = "[#{filled_part}#{empty_part}] #{Color.bright_white(val_str)}"
-        pad_b = [inner_w - (bar_w + 3 + val_str.length), 0].max
+        bar_vis_w = 2 + filled_len + empty_len + 1 + display_width(val_str)
+        pad_b = [inner_w - bar_vis_w, 0].max
         lines << "#{Color.rgb(v_l, rgb_tick)} #{bar_raw}#{' ' * pad_b} #{Color.rgb(v_r, rgb_tick)}"
         lines << "#{Color.rgb(v_l, rgb_tick)} #{' ' * inner_w} #{Color.rgb(v_r, rgb_tick)}"
         lines << "#{Color.rgb(v_l, rgb_tick)} #{Color.gray(i_line)} #{Color.rgb(v_r, rgb_tick)}"
         lines << Color.rgb("#{border_cfg[:bl]}#{bot_fill}#{border_cfg[:br]}", rgb_tick)
       else
-        color_code = ansi_color(color, 2)
+        color_code = ansi_color(sl_color, 2)
         reset_code = ansi_reset
 
         bar_raw = "[#{"█" * filled_len}#{"░" * empty_len}] #{val_str}"
         pad_b = [inner_w - display_width(bar_raw), 0].max
+        bar_line = bar_raw + (" " * pad_b)
 
         lines << "#{color_code}#{border_cfg[:tl]}#{top_fill}#{border_cfg[:tr]}#{reset_code}"
         lines << "#{color_code}#{v_l}#{reset_code} #{Color.bright_yellow(p_line)} #{color_code}#{v_r}#{reset_code}"
         lines << "#{color_code}#{v_l}#{reset_code} #{' ' * inner_w} #{color_code}#{v_r}#{reset_code}"
-        lines << "#{color_code}#{v_l}#{reset_code} #{Color.bright_cyan(bar_raw)}#{' ' * pad_b} #{color_code}#{v_r}#{reset_code}"
+        lines << "#{color_code}#{v_l}#{reset_code} #{bar_line} #{color_code}#{v_r}#{reset_code}"
         lines << "#{color_code}#{v_l}#{reset_code} #{' ' * inner_w} #{color_code}#{v_r}#{reset_code}"
         lines << "#{color_code}#{v_l}#{reset_code} #{Color.gray(i_line)} #{color_code}#{v_r}#{reset_code}"
         lines << "#{color_code}#{border_cfg[:bl]}#{bot_fill}#{border_cfg[:br]}#{reset_code}"
@@ -1322,7 +1466,8 @@ class GRmenu
       banner:   { color: "magenta", level: 2 },
       subtitle: { color: "cyan",    level: 2 },
       divider:  { color: "blue",    level: 1 },
-      font:     1
+      font:     1,
+      desc_prefix: "[i]"
     )
       @border   = border.dup
       @options  = options.dup
@@ -1332,11 +1477,22 @@ class GRmenu
       @subtitle = subtitle.dup
       @divider  = divider.dup
       @font     = font.to_i
+      @desc_prefix = desc_prefix.to_s
     end
+
+    def desc_prefix(prefix_str = nil)
+      return @desc_prefix if prefix_str.nil?
+      @desc_prefix = prefix_str.to_s
+      self
+    end
+    alias_method :description_prefix, :desc_prefix
+    alias_method :desc_prefix=, :desc_prefix
+    alias_method :description_prefix=, :desc_prefix
 
     def border(color_name = nil, brightness_level = 1)
       return @border if color_name.nil?
       @border = parse_color(color_name, brightness_level)
+      self
     end
     alias_method :Border, :border
     alias_method :set_border, :border
@@ -1345,6 +1501,7 @@ class GRmenu
     def options(color_name = nil, brightness_level = 1)
       return @options if color_name.nil?
       @options = parse_color(color_name, brightness_level)
+      self
     end
     alias_method :Options, :options
     alias_method :set_options, :options
@@ -1353,6 +1510,7 @@ class GRmenu
     def focus(color_name = nil, brightness_level = 2)
       return @focus if color_name.nil?
       @focus = parse_color(color_name, brightness_level)
+      self
     end
     alias_method :Focus, :focus
     alias_method :set_focus, :focus
@@ -1361,6 +1519,7 @@ class GRmenu
     def title(color_name = nil, brightness_level = 2)
       return @title if color_name.nil?
       @title = parse_color(color_name, brightness_level)
+      self
     end
     alias_method :Title, :title
     alias_method :set_title, :title
@@ -1369,6 +1528,7 @@ class GRmenu
     def banner(color_name = nil, brightness_level = 2)
       return @banner if color_name.nil?
       @banner = parse_color(color_name, brightness_level)
+      self
     end
     alias_method :Banner, :banner
     alias_method :set_banner, :banner
@@ -1377,6 +1537,7 @@ class GRmenu
     def subtitle(color_name = nil, brightness_level = 2)
       return @subtitle if color_name.nil?
       @subtitle = parse_color(color_name, brightness_level)
+      self
     end
     alias_method :Subtitle, :subtitle
     alias_method :set_subtitle, :subtitle
@@ -1385,6 +1546,7 @@ class GRmenu
     def divider(color_name = nil, brightness_level = 1)
       return @divider if color_name.nil?
       @divider = parse_color(color_name, brightness_level)
+      self
     end
     alias_method :Divider, :divider
     alias_method :set_divider, :divider
@@ -1393,6 +1555,7 @@ class GRmenu
     def font(font_id = nil)
       return @font if font_id.nil?
       @font = font_id.to_i
+      self
     end
     alias_method :Font, :font
     alias_method :set_font, :font
@@ -1473,6 +1636,15 @@ class GRmenu
       alias_method :Font, :font
       alias_method :set_font, :font
       alias_method :font=, :font
+
+      def desc_prefix(prefix_str = nil)
+        @default_desc_prefix ||= "[i]"
+        return @default_desc_prefix if prefix_str.nil?
+        @default_desc_prefix = prefix_str.to_s
+      end
+      alias_method :description_prefix, :desc_prefix
+      alias_method :desc_prefix=, :desc_prefix
+      alias_method :description_prefix=, :desc_prefix
     end
   end
 
@@ -1522,6 +1694,709 @@ class GRmenu
   end
   class << self
     alias_method :clr, :clear_screen
+  end
+
+  @@global_theme = {}
+
+  def self.current_theme
+    @@global_theme
+  end
+
+  def self.parse_config_text(text)
+    data = { global: {}, sections: {} }
+    current_sec = nil
+    current_sec_data = {}
+
+    text.to_s.each_line do |line|
+      line = line.strip
+      next if line.empty? || line.start_with?("#")
+      next if line.start_with?("GRmenu::config")
+
+      if line.start_with?("<<")
+        sec_name = line[2..-1].strip.downcase
+        current_sec = sec_name
+        current_sec_data = {}
+      elsif line == ">>"
+        if current_sec
+          data[:sections][current_sec] = current_sec_data
+          current_sec = nil
+        end
+      elsif line.include?("::")
+        key, _, val = line.partition("::")
+        key = key.strip.sub(/^@/, '').downcase
+        val = val.strip.sub(/^["']/, '').sub(/["']$/, '')
+        if current_sec
+          current_sec_data[key] = val
+        else
+          data[:global][key] = val
+        end
+      end
+    end
+    data
+  end
+
+  def self.find_theme_file(path_or_name)
+    name = path_or_name.to_s
+    candidates = [
+      name,
+      "#{name}.gr",
+      find_data_file("themes/#{name}.gr"),
+      find_data_file("themes/#{name}"),
+      File.expand_path("data/themes/#{name}.gr", __dir__),
+      File.expand_path("data/themes/#{name}", __dir__),
+      File.expand_path("../data/themes/#{name}.gr", __dir__),
+      File.expand_path("../data/themes/#{name}", __dir__)
+    ].compact
+    candidates.find { |p| File.exist?(p) }
+  end
+
+  def self.import_config(path_or_name)
+    path = find_theme_file(path_or_name)
+    raise "No se encontro el tema: #{path_or_name}" unless path && File.exist?(path)
+    text = File.read(path)
+    parsed = parse_config_text(text)
+    apply_parsed_theme(parsed)
+    @@global_theme = parsed
+    path
+  end
+
+  def self.theme(name)
+    import_config(name)
+  end
+
+  def self.extract_color_and_level(val, default_level = 1)
+    return ["white", default_level] if val.nil?
+    parts = val.to_s.split(":")
+    c_name = parts[0].to_s.strip
+    lvl = parts[1] ? parts[1].to_i : default_level
+    [c_name, lvl]
+  end
+
+  def self.apply_parsed_theme(parsed)
+    sec = parsed[:sections] || {}
+    glob = parsed[:global] || {}
+    m = (sec["menu"] || {}).merge(glob)
+
+    if m && !m.empty?
+      if m["border"] || m["border_color"]
+        c, l = extract_color_and_level(m["border"] || m["border_color"], 1)
+        SetStyle.border(c, l)
+      end
+      if m["title"] || m["title_color"]
+        c, l = extract_color_and_level(m["title"] || m["title_color"], 2)
+        SetStyle.title(c, l)
+      end
+      if m["focus"] || m["focus_color"]
+        c, l = extract_color_and_level(m["focus"] || m["focus_color"], 2)
+        SetStyle.focus(c, l)
+      end
+      if m["options"] || m["options_color"]
+        c, l = extract_color_and_level(m["options"] || m["options_color"], 1)
+        SetStyle.options(c, l)
+      end
+      if m["banner"] || m["banner_color"]
+        c, l = extract_color_and_level(m["banner"] || m["banner_color"], 2)
+        SetStyle.banner(c, l)
+      end
+      if m["subtitle"] || m["subtitle_color"]
+        c, l = extract_color_and_level(m["subtitle"] || m["subtitle_color"], 1)
+        SetStyle.subtitle(c, l)
+      end
+      if m["divider"] || m["divider_color"]
+        c, l = extract_color_and_level(m["divider"] || m["divider_color"], 1)
+        SetStyle.divider(c, l)
+      end
+      if m["desc_prefix"] || m["description_prefix"] || m["prefix"]
+        SetStyle.desc_prefix(m["desc_prefix"] || m["description_prefix"] || m["prefix"])
+      end
+      SetStyle.font(m["font"].to_i) if m["font"]
+    end
+
+    sec.each do |k, v|
+      next unless v.is_a?(Hash)
+      c_val = v["color"] || v["border"] || v["options"] || v["focus"] || v["title"] || v["banner"] || v["subtitle"] || v["divider"]
+      c, l = extract_color_and_level(c_val, (v["level"] || 1).to_i)
+      case k
+      when "border"
+        SetStyle.border(c, l)
+      when "options"
+        SetStyle.options(c, l)
+      when "focus"
+        SetStyle.focus(c, l)
+      when "title"
+        SetStyle.title(c, l)
+      when "banner"
+        SetStyle.banner(c, l)
+      when "subtitle"
+        SetStyle.subtitle(c, l)
+      when "divider"
+        SetStyle.divider(c, l)
+      end
+    end
+    SetStyle.font(glob["font"].to_i) if glob["font"]
+  end
+
+  def self.style(css_content)
+    parsed = parse_config_text(css_content)
+    apply_parsed_theme(parsed)
+    parsed
+  end
+
+  def self.export_config(path = nil)
+    if path.nil?
+      caller_loc = caller_locations.find { |c| !c.path.include?(__FILE__) }
+      base = caller_loc ? caller_loc.path.sub(/\.rb$/, '') : "theme"
+      path = "#{base}.gr"
+    end
+    lines = ["GRmenu::config<-1->", ""]
+    lines << "@theme:: \"#{File.basename(path, '.gr').capitalize}\""
+    lines << "@author:: \"grcode\""
+    lines << "@version:: \"1.0\""
+    lines << ""
+    lines << "<<menu"
+    lines << "  style:: 3"
+    lines << "  banner_style:: 3"
+    lines << "  font:: #{SetStyle.font}"
+    lines << "  animate:: rgb"
+    lines << "  center:: true"
+    lines << "  border:: #{SetStyle.border[:color]}:#{SetStyle.border[:level]}"
+    lines << "  title:: #{SetStyle.title[:color]}:#{SetStyle.title[:level]}"
+    lines << "  focus:: #{SetStyle.focus[:color]}:#{SetStyle.focus[:level]}"
+    lines << "  options:: #{SetStyle.options[:color]}:#{SetStyle.options[:level]}"
+    lines << "  banner:: #{SetStyle.banner[:color]}:#{SetStyle.banner[:level]}"
+    lines << "  subtitle:: #{SetStyle.subtitle[:color]}:#{SetStyle.subtitle[:level]}"
+    lines << "  divider:: #{SetStyle.divider[:color]}:#{SetStyle.divider[:level]}"
+    lines << ">>"
+    lines << ""
+    lines << "<<table"
+    lines << "  style:: 3"
+    lines << "  header_color:: yellow:2"
+    lines << "  border_color:: rgb:2"
+    lines << "  selected_row:: green:2"
+    lines << "  row_color:: white:1"
+    lines << "  zebra_striping:: true"
+    lines << ">>"
+    lines << ""
+    lines << "<<card"
+    lines << "  style:: 7"
+    lines << "  border_color:: cyan:2"
+    lines << "  title_color:: yellow:2"
+    lines << "  content_color:: white:1"
+    lines << ">>"
+    lines << ""
+    lines << "<<slider"
+    lines << "  style:: 3"
+    lines << "  color:: rgb:2"
+    lines << "  fill_char:: █"
+    lines << "  empty_char:: ░"
+    lines << ">>"
+    lines << ""
+    lines << "<<checkbox"
+    lines << "  style:: 3"
+    lines << "  color:: rgb:2"
+    lines << "  checked_mark:: [X]"
+    lines << "  unchecked_mark:: [ ]"
+    lines << ">>"
+    lines << ""
+    File.write(path, lines.join("\n") + "\n")
+    path
+  end
+
+  def self.export_from_file(source_file, target_path = nil)
+    raise "No existe #{source_file}" unless File.exist?(source_file)
+    orig_draw = instance_method(:draw) rescue nil
+    extracted = nil
+    define_method(:draw) do |*|
+      extracted = {
+        style: @style,
+        banner_style: @banner_style,
+        font: @style_config&.font,
+        animate: @animate,
+        border: @style_config&.border,
+        title: @style_config&.title,
+        focus: @style_config&.focus,
+        options: @style_config&.options,
+        banner: @style_config&.banner,
+        subtitle: @style_config&.subtitle,
+        divider: @style_config&.divider
+      }
+      throw :grmenu_export_completed
+    end
+    begin
+      catch(:grmenu_export_completed) do
+        load(File.expand_path(source_file))
+      end
+    ensure
+      define_method(:draw, orig_draw) if orig_draw
+    end
+    out = target_path || source_file.sub(/\.rb$/, '') + ".gr"
+    if extracted && extracted[:border]
+      lines = ["GRmenu::config<-1->", ""]
+      lines << "@theme:: \"#{File.basename(out, '.gr').capitalize}\""
+      lines << "@author:: \"grcode\""
+      lines << "@version:: \"1.0\""
+      lines << ""
+      lines << "<<menu"
+      lines << "  style:: #{extracted[:style] || 3}"
+      lines << "  banner_style:: #{extracted[:banner_style] || 3}"
+      lines << "  font:: #{extracted[:font] || 1}"
+      lines << "  animate:: #{extracted[:animate] || 'rgb'}"
+      lines << "  center:: true"
+      lines << "  border:: #{extracted[:border][:color]}:#{extracted[:border][:level]}"
+      lines << "  title:: #{extracted[:title][:color]}:#{extracted[:title][:level]}"
+      lines << "  focus:: #{extracted[:focus][:color]}:#{extracted[:focus][:level]}"
+      lines << "  options:: #{extracted[:options][:color]}:#{extracted[:options][:level]}"
+      lines << "  banner:: #{extracted[:banner][:color]}:#{extracted[:banner][:level]}"
+      lines << "  subtitle:: #{extracted[:subtitle][:color]}:#{extracted[:subtitle][:level]}"
+      lines << "  divider:: #{extracted[:divider][:color]}:#{extracted[:divider][:level]}"
+      lines << ">>"
+      lines << ""
+      lines << "<<table"
+      lines << "  style:: #{extracted[:style] || 3}"
+      lines << "  header_color:: yellow:2"
+      lines << "  border_color:: rgb:2"
+      lines << "  selected_row:: green:2"
+      lines << "  row_color:: white:1"
+      lines << "  zebra_striping:: true"
+      lines << ">>"
+      lines << ""
+      lines << "<<card"
+      lines << "  style:: 7"
+      lines << "  border_color:: cyan:2"
+      lines << "  title_color:: yellow:2"
+      lines << "  content_color:: white:1"
+      lines << ">>"
+      lines << ""
+      lines << "<<slider"
+      lines << "  style:: 3"
+      lines << "  color:: rgb:2"
+      lines << "  fill_char:: █"
+      lines << "  empty_char:: ░"
+      lines << ">>"
+      lines << ""
+      lines << "<<checkbox"
+      lines << "  style:: 3"
+      lines << "  color:: rgb:2"
+      lines << "  checked_mark:: [X]"
+      lines << "  unchecked_mark:: [ ]"
+      lines << ">>"
+      lines << ""
+      File.write(out, lines.join("\n") + "\n")
+      out
+    else
+      export_config(out)
+    end
+  end
+
+  def self.split_ansi_chars(str)
+    segments = []
+    current_style = String.new("")
+    in_escape = false
+    escape_buf = String.new("")
+
+    str.to_s.each_char do |ch|
+      if ch == "\e"
+        in_escape = true
+        escape_buf << ch
+        next
+      end
+      if in_escape
+        escape_buf << ch
+        if ch =~ /[a-zA-Z]/
+          in_escape = false
+          current_style = escape_buf.dup
+          escape_buf.clear
+        end
+        next
+      end
+      segments << { char: ch, style: current_style.dup }
+    end
+    segments
+  end
+
+  def self.animate_render(lines, type = :diagonal, delay = 0.012)
+    type_str = type.to_s.downcase
+    return if lines.nil? || lines.empty?
+    rst = ansi_reset
+
+    case type_str
+    when "diagonal"
+      parsed_rows = lines.map { |l| split_ansi_chars(l) }
+      max_len = parsed_rows.map(&:length).max || 0
+      total_steps = max_len + (parsed_rows.length * 2)
+      step = 0
+      while step <= total_steps
+        buffer = String.new(CURSOR_HOME)
+        parsed_rows.each_with_index do |row_segs, y|
+          rendered_row = String.new("")
+          row_segs.each_with_index do |seg, x|
+            if (x + y * 2) <= step
+              rendered_row << seg[:style] << seg[:char] << rst
+            else
+              rendered_row << " "
+            end
+          end
+          buffer << rendered_row << CLEAR_TO_EOL << "\r\n"
+        end
+        buffer << CLEAR_TO_EOS
+        Kernel.print(buffer)
+        $stdout.flush
+        sleep(delay)
+        step += 4
+      end
+    when "linear"
+      buffer = String.new(CURSOR_HOME)
+      lines.each do |line|
+        Kernel.print("#{line}#{CLEAR_TO_EOL}\r\n")
+        $stdout.flush
+        sleep(delay * 3)
+      end
+    when "fade"
+      [1, 2].each do |lvl|
+        buffer = String.new(CURSOR_HOME)
+        lines.each do |line|
+          clean = line.gsub(/\e\[[0-9;]*m/, '')
+          buffer << ansi_color("white", lvl) << clean << rst << CLEAR_TO_EOL << "\r\n"
+        end
+        buffer << CLEAR_TO_EOS
+        Kernel.print(buffer)
+        $stdout.flush
+        sleep(delay * 8)
+      end
+    end
+  end
+
+  def self.alert(type, message, title: nil, style: 3, color: nil, border_color: nil, title_color: nil, pause: true)
+    type_sym = type.to_sym rescue :info
+    tag, def_col, def_title = case type_sym
+                              when :success, :ok
+                                ["[✔ EXITO]", "green", "Operacion Exitosa"]
+                              when :error, :fail, :danger
+                                ["[✖ ERROR]", "red", "Error en el Sistema"]
+                              when :warning, :warn
+                                ["[⚠ AVISO]", "yellow", "Advertencia"]
+                              else
+                                ["[ℹ INFO]", "cyan", "Informacion"]
+                              end
+    card_col = border_color || color || def_col
+    card_title = title || "#{tag} #{def_title}"
+    card(title: card_title, content: message, style: style, color: card_col, title_color: title_color, pause: pause)
+  end
+
+  def self.card(title: nil, content: "", style: nil, color: nil, border_color: nil, title_color: nil, content_color: nil, width: nil, pause: true)
+    c_sec = (@@global_theme.is_a?(Hash) && @@global_theme.dig(:sections, "card")) || {}
+    style_num = (style || c_sec["style"] || 7).to_i
+    border_cfg = BORDERS[style_num] || BORDERS[7]
+    card_color = (border_color || color || c_sec["border_color"] || c_sec["color"] || "cyan").to_s
+    title_color = (title_color || c_sec["title_color"] || "yellow").to_s
+    content_color = (content_color || c_sec["content_color"] || "white").to_s
+    is_rgb = card_color.downcase == "rgb" || card_color.downcase == "rainbow" || card_color.downcase == "chroma"
+
+    lines = content.to_s.split("\n")
+    content_max = lines.map { |l| display_width(l) }.max || 0
+    box_w = width || [content_max + 6, title ? display_width(title) + 6 : 0, 46].max
+    box_w = [box_w, terminal_width - 2].min
+    inner_w = box_w - 2
+
+    wrapped_lines = []
+    lines.each do |raw_l|
+      if display_width(raw_l) <= (inner_w - 2)
+        wrapped_lines << raw_l
+      else
+        cur = String.new("")
+        raw_l.split(" ").each do |w|
+          if cur.empty?
+            cur << w
+          elsif display_width("#{cur} #{w}") <= (inner_w - 2)
+            cur << " " << w
+          else
+            wrapped_lines << cur
+            cur = String.new(w)
+          end
+        end
+        wrapped_lines << cur unless cur.empty?
+      end
+    end
+
+    tl = border_cfg[:tl] || "#"
+    tr = border_cfg[:tr] || "#"
+    bl = border_cfg[:bl] || "#"
+    br = border_cfg[:br] || "#"
+    h_char = border_cfg[:h] || "─"
+    v_char = border_cfg[:v] || "│"
+
+    brd_col = is_rgb ? Color.rgb("").sub(/\e\[0m$/, '') : ansi_color(card_color, 1)
+    rst = ansi_reset
+
+    top_str = if title && !title.empty?
+                t_clean = " #{title} "
+                t_len = display_width(t_clean)
+                if t_len > inner_w
+                  t_clean = " #{title[0...[inner_w - 6, 1].max]}... "
+                  t_len = display_width(t_clean)
+                end
+                l_len = [(inner_w - t_len) / 2, 0].max
+                r_len = [inner_w - t_len - l_len, 0].max
+                h_char * l_len + ansi_color(title_color, 2) + t_clean + brd_col + h_char * r_len
+              else
+                h_char * inner_w
+              end
+
+    out = +""
+    out << "#{brd_col}#{tl}#{top_str}#{tr}#{rst}\r\n"
+    wrapped_lines.each do |line|
+      pad_line = " " + line
+      out << "#{brd_col}#{v_char}#{rst}#{ansi_color(content_color, 1)}#{pad_to_width(pad_line, inner_w)}#{rst}#{brd_col}#{v_char}#{rst}\r\n"
+    end
+    out << "#{brd_col}#{bl}#{h_char * inner_w}#{br}#{rst}\r\n"
+
+    Kernel.print(out)
+    self.continue if pause
+  end
+
+  def self.table(headers: [], rows: [], title: nil, style: nil, color: nil, page_size: nil, search: false, sort: false, animate: nil, width: nil)
+    t_sec = (@@global_theme.is_a?(Hash) && @@global_theme.dig(:sections, "table")) || {}
+    input_stream = STDIN
+    output_stream = STDOUT
+    style_num = (style || t_sec["style"] || 3).to_i
+    border_cfg = BORDERS[style_num] || BORDERS[3]
+    tbl_color = (color || t_sec["border_color"] || t_sec["border"] || t_sec["color"] || "cyan").to_s
+    header_color = t_sec["header_color"] || "yellow"
+    focus_color = t_sec["selected_row"] || t_sec["focus"] || "green"
+    page_size ||= (t_sec["page_size"] || 8).to_i
+
+    headers = headers.map(&:to_s)
+    raw_rows = rows.map { |r| r.is_a?(Array) ? r.map(&:to_s) : r.values.map(&:to_s) }
+    filtered_rows = raw_rows.dup
+    selected_idx = 0
+    query = String.new("")
+    sort_col = nil
+    sort_asc = true
+    tick = 0.0
+
+    calc_widths = lambda do
+      col_counts = [headers.length, raw_rows.map(&:length).max || 0].max
+      widths = Array.new(col_counts, 0)
+      headers.each_with_index { |h, i| widths[i] = [widths[i], display_width(h)].max }
+      filtered_rows.each do |row|
+        row.each_with_index { |cell, i| widths[i] = [widths[i], display_width(cell)].max }
+      end
+      widths.map { |w| w + 2 }
+    end
+
+    draw_table = lambda do |t_tick|
+      is_rgb = tbl_color.downcase == "rgb" || tbl_color.downcase == "rainbow" || tbl_color.downcase == "chroma"
+      brd_color = is_rgb ? rgb_color(t_tick, 0.0) : ansi_color(tbl_color, 1)
+      hdr_color = is_rgb ? rgb_color(t_tick, 0.8) : ansi_color(header_color, 2)
+      foc_color = is_rgb ? rgb_color(t_tick, 1.4) : ansi_color(focus_color, 2)
+      rst = ansi_reset
+
+      col_w = calc_widths.call
+      help_line = " ↑/↓: Moverse | Enter: Elegir | s: Ordenar | Esc: Salir"
+      tot_w = [col_w.sum + (col_w.length - 1) + 4, title ? display_width(title) + 8 : 0, display_width(help_line) + 4, 46].max
+      tot_w = [tot_w, terminal_width - 2].min
+      inner_w = tot_w - 2
+
+      if inner_w < display_width(help_line)
+        help_line = " ↑/↓: Mover | Enter: Ok | Esc: Salir"
+      end
+
+      tl = border_cfg[:tl] || "#"
+      tr = border_cfg[:tr] || "#"
+      bl = border_cfg[:bl] || "#"
+      br = border_cfg[:br] || "#"
+      h_char = border_cfg[:h] || "─"
+      v_char = border_cfg[:v] || "│"
+
+      top_str = if title && !title.empty?
+                  t_clean = " #{title} "
+                  t_len = display_width(t_clean)
+                  if t_len > inner_w
+                    t_clean = " #{title[0...[(inner_w - 6), 1].max]}... "
+                    t_len = display_width(t_clean)
+                  end
+                  left_len = [(inner_w - t_len) / 2, 0].max
+                  right_len = [inner_w - t_len - left_len, 0].max
+                  h_char * left_len + t_clean + h_char * right_len
+                else
+                  h_char * inner_w
+                end
+
+      out = String.new(CURSOR_HOME)
+      out << HIDE_CURSOR
+      out << "#{brd_color}#{tl}#{top_str}#{tr}#{rst}#{CLEAR_TO_EOL}\r\n"
+
+      if search
+        s_line = " Buscar: #{query}█"
+        out << "#{brd_color}#{v_char}#{rst}#{pad_to_width(s_line, inner_w)}#{brd_color}#{v_char}#{rst}#{CLEAR_TO_EOL}\r\n"
+        out << "#{brd_color}#{v_char}#{h_char * inner_w}#{v_char}#{rst}#{CLEAR_TO_EOL}\r\n"
+      end
+
+      hdr_cells = headers.each_with_index.map do |h, i|
+        w = col_w[i] || 10
+        sort_indicator = sort_col == i ? (sort_asc ? " ▲" : " ▼") : ""
+        h_str = "#{h}#{sort_indicator}"
+        max_c = [w - 2, 2].max
+        h_str = h_str[0...[max_c - 2, 1].max] + ".." if display_width(h_str) > max_c
+        pad_to_width(" #{h_str}", w)
+      end
+      hdr_row_str = " " + hdr_cells.join("│")
+      hdr_row_str = hdr_row_str[0...inner_w] if display_width(hdr_row_str) > inner_w
+      out << "#{brd_color}#{v_char}#{rst}#{hdr_color}#{pad_to_width(hdr_row_str, inner_w)}#{rst}#{brd_color}#{v_char}#{rst}#{CLEAR_TO_EOL}\r\n"
+      out << "#{brd_color}#{v_char}#{h_char * inner_w}#{v_char}#{rst}#{CLEAR_TO_EOL}\r\n"
+
+      max_visible = page_size || 8
+      total_rows = filtered_rows.length
+      if total_rows == 0
+        empty_msg = " (Sin registros que coincidan con '#{query}')"
+        out << "#{brd_color}#{v_char}#{rst}#{pad_to_width(empty_msg, inner_w)}#{brd_color}#{v_char}#{rst}#{CLEAR_TO_EOL}\r\n"
+      else
+        start_idx = [(selected_idx - max_visible / 2), 0].max
+        start_idx = [start_idx, [total_rows - max_visible, 0].max].min
+        end_idx = [start_idx + max_visible - 1, total_rows - 1].min
+
+        if start_idx > 0
+          up_str = " ▲ (+#{start_idx} arriba)"
+          out << "#{brd_color}#{v_char}#{rst}#{ansi_color('gray', 1)}#{pad_to_width(up_str, inner_w)}#{rst}#{brd_color}#{v_char}#{rst}#{CLEAR_TO_EOL}\r\n"
+        end
+
+        (start_idx..end_idx).each do |r_i|
+          row = filtered_rows[r_i]
+          is_active = (r_i == selected_idx)
+          prefix = is_active ? "> " : "  "
+
+          row_cells = row.each_with_index.map do |cell, c_i|
+            w = col_w[c_i] || 10
+            c_str = cell.to_s
+            max_c = [w - 2, 2].max
+            c_str = c_str[0...[max_c - 2, 1].max] + ".." if display_width(c_str) > max_c
+            pad_to_width(" #{c_str}", w)
+          end
+          row_str = prefix + row_cells.join("│")[1..-1].to_s
+          row_str = row_str[0...inner_w] if display_width(row_str) > inner_w
+
+          if is_active
+            out << "#{brd_color}#{v_char}#{rst}#{foc_color}#{pad_to_width(row_str, inner_w)}#{rst}#{brd_color}#{v_char}#{rst}#{CLEAR_TO_EOL}\r\n"
+          else
+            out << "#{brd_color}#{v_char}#{rst}#{pad_to_width(row_str, inner_w)}#{brd_color}#{v_char}#{rst}#{CLEAR_TO_EOL}\r\n"
+          end
+        end
+
+        remaining_down = total_rows - 1 - end_idx
+        if remaining_down > 0
+          down_str = " ▼ (+#{remaining_down} abajo)"
+          out << "#{brd_color}#{v_char}#{rst}#{ansi_color('gray', 1)}#{pad_to_width(down_str, inner_w)}#{rst}#{brd_color}#{v_char}#{rst}#{CLEAR_TO_EOL}\r\n"
+        end
+      end
+
+      out << "#{brd_color}#{v_char}#{h_char * inner_w}#{v_char}#{rst}#{CLEAR_TO_EOL}\r\n"
+      out << "#{brd_color}#{v_char}#{rst}#{ansi_color('gray', 1)}#{pad_to_width(help_line, inner_w)}#{rst}#{brd_color}#{v_char}#{rst}#{CLEAR_TO_EOL}\r\n"
+      out << "#{brd_color}#{bl}#{h_char * inner_w}#{br}#{rst}#{CLEAR_TO_EOL}\r\n"
+      out << CLEAR_TO_EOS
+      output_stream.print(out)
+      output_stream.flush
+    end
+
+    loop_res = nil
+    reader = lambda do |stream|
+      loop do
+        draw_table.call(tick)
+        is_anim = color.to_s.downcase == "rgb" || color.to_s.downcase == "rainbow" || color.to_s.downcase == "chroma"
+        if is_anim
+          ready = false
+          if stream.respond_to?(:to_io) || stream.is_a?(IO)
+            begin
+              res = IO.select([stream], nil, nil, 0.035)
+              ready = true if res && res[0] && !res[0].empty?
+            rescue StandardError
+              ready = true
+            end
+          else
+            ready = true
+          end
+          unless ready
+            tick += 0.08
+            next
+          end
+        end
+
+        key = read_key_raw(stream)
+        break if key.nil? || key == "\x03" || key == "\x04"
+
+        if key == "\e[A" || key == "\eOA" || key == "\xe0H" || key == "\x00H"
+          if filtered_rows.length > 0
+            selected_idx = (selected_idx - 1) % filtered_rows.length
+          end
+        elsif key == "\e[B" || key == "\eOB" || key == "\xe0P" || key == "\x00P"
+          if filtered_rows.length > 0
+            selected_idx = (selected_idx + 1) % filtered_rows.length
+          end
+        elsif key == "\e[5~" || key == "\e[D"
+          if filtered_rows.length > 0
+            selected_idx = [(selected_idx - (page_size || 8)), 0].max
+          end
+        elsif key == "\e[6~" || key == "\e[C"
+          if filtered_rows.length > 0
+            selected_idx = [(selected_idx + (page_size || 8)), filtered_rows.length - 1].min
+          end
+        elsif key == "\r" || key == "\n"
+          if filtered_rows.length > 0
+            loop_res = filtered_rows[selected_idx]
+          end
+          break
+        elsif key == "\e"
+          if search && !query.empty?
+            query.clear
+            filtered_rows = raw_rows.dup
+            selected_idx = 0
+          else
+            loop_res = nil
+            break
+          end
+        elsif key == "\x7f" || key == "\b" || key == "\x08"
+          if search && !query.empty?
+            query.chop!
+            if query.empty?
+              filtered_rows = raw_rows.dup
+            else
+              filtered_rows = raw_rows.select { |r| r.any? { |c| c.downcase.include?(query.downcase) } }
+            end
+            selected_idx = 0
+          end
+        elsif key == "\x15"
+          if search
+            query.clear
+            filtered_rows = raw_rows.dup
+            selected_idx = 0
+          end
+        elsif (!search || query.empty?) && (key == "s" || key == "S")
+          if sort
+            sort_col = ((sort_col || -1) + 1) % [headers.length, 1].max
+            filtered_rows.sort_by! { |r| r[sort_col] || "" }
+            selected_idx = 0
+          end
+        elsif (!search || query.empty?) && (key == "q" || key == "Q")
+          loop_res = nil
+          break
+        elsif search && key =~ /^[[:print:]]$/
+          query << key
+          filtered_rows = raw_rows.select { |r| r.any? { |c| c.downcase.include?(query.downcase) } }
+          selected_idx = 0
+        end
+      end
+    end
+
+    begin
+      output_stream.print("#{HIDE_CURSOR}#{CLEAR_SCREEN_SEQUENCE}")
+      if input_stream.respond_to?(:raw) && input_stream.respond_to?(:tty?) && input_stream.tty?
+        input_stream.raw { |s| reader.call(s) }
+      else
+        reader.call(input_stream)
+      end
+    ensure
+      output_stream.print("#{SHOW_CURSOR}#{CLEAR_SCREEN_SEQUENCE}")
+    end
+    loop_res
   end
 
   def self.div(long = nil, color = "blue", level = 1, char = "─")
@@ -1660,14 +2535,21 @@ class GRmenu
     @banner       = (banner || keyword_arguments[:banner] || "").to_s
     @subtitle     = (subtitle || description || keyword_arguments[:subtitle] || keyword_arguments[:description] || "").to_s
     @divider      = divider.nil? ? (!@banner.empty? || !@subtitle.empty?) : divider
-    @style        = (style || pos_style || keyword_arguments[:style] || 19).to_i
-    @banner_style = (banner_style || keyword_arguments[:banner_style] || 3).to_i
-    @center       = center.nil? ? true : center
+
+    theme_menu_sec = (@@global_theme.is_a?(Hash) && @@global_theme.dig(:sections, 'menu')) || {}
+    th_style       = theme_menu_sec['style']&.to_i
+    th_bstyle      = theme_menu_sec['banner_style']&.to_i
+
+    @style        = (style || pos_style || keyword_arguments[:style] || th_style || 19).to_i
+    @banner_style = (banner_style || keyword_arguments[:banner_style] || th_bstyle || 3).to_i
+    @center       = center.nil? ? (theme_menu_sec.key?('center') ? (theme_menu_sec['center'].to_s != 'false') : true) : center
     @page_size    = (page_size || keyword_arguments[:page_size])&.to_i
     @search       = search || keyword_arguments[:search] || false
     @columns      = [(columns || keyword_arguments[:columns] || 1).to_i, 1].max
     @image        = image || keyword_arguments[:image]
     @image_width  = (image_width || keyword_arguments[:image_width])&.to_i
+    @animate      = (keyword_arguments[:animate] || (@@global_theme.is_a?(Hash) && @@global_theme.dig(:sections, 'menu', 'animate')) || false).to_s
+    @desc_prefix  = keyword_arguments[:desc_prefix] || keyword_arguments[:description_prefix]
     @query        = String.new("")
     @index        = 0
     @rgb_tick     = 0.0
@@ -1676,6 +2558,7 @@ class GRmenu
     @cached_image_cols  = nil
 
     init_font = font || keyword_arguments[:font_style] || SetStyle.font || 1
+    init_pfx  = @desc_prefix || (@@global_theme.is_a?(Hash) && (@@global_theme.dig(:sections, 'menu', 'desc_prefix') || @@global_theme.dig(:sections, 'menu', 'prefix'))) || SetStyle.desc_prefix || "[i]"
 
     @style_config = SetStyle.new(
       border:   SetStyle.border.dup,
@@ -1685,7 +2568,8 @@ class GRmenu
       banner:   SetStyle.banner.dup,
       subtitle: SetStyle.subtitle.dup,
       divider:  SetStyle.divider.dup,
-      font:     init_font
+      font:     init_font,
+      desc_prefix: init_pfx
     )
   end
 
@@ -1776,10 +2660,20 @@ class GRmenu
   def colorize(text, color_config, phase_offset = 0.0)
     return text.to_s if color_config.nil? || color_config.empty?
 
-    color_name = (color_config[:color] || color_config["color"]).to_s.downcase
+    color_name = (color_config[:color] || color_config["color"]).to_s.downcase.strip
     brightness_level = (color_config[:level] || color_config["level"] || 1).to_i
 
-    if color_name == "rgb" || color_name == "rainbow" || color_name == "chroma"
+    if color_name.include?(":")
+      parts = color_name.split(":")
+      color_name = parts[0].strip
+      brightness_level = parts[1].to_i if parts[1] && !parts[1].empty?
+    end
+
+    is_neon_color = color_name.start_with?("neon")
+    is_anim_active = is_neon_color || (@animate && ["diagonal", "linear", "fade", "rgb", "rainbow", "chroma", "neon"].include?(@animate.to_s.downcase))
+    is_chroma = color_name == "rgb" || color_name == "rainbow" || color_name == "chroma" || @animate.to_s.downcase == "rgb"
+
+    if is_chroma
       tick = @rgb_tick || 0.0
       out = String.new("")
       char_count = 0
@@ -1812,6 +2706,67 @@ class GRmenu
       end
       out << self.class.ansi_reset
       return out
+    end
+
+    if is_anim_active
+      tick = @rgb_tick || 0.0
+      base = if color_name =~ /\A#?([0-9a-f]{6})\z/i
+               h = $1
+               [h[0..1].to_i(16), h[2..3].to_i(16), h[4..5].to_i(16)]
+             elsif color_name =~ /\A#?([0-9a-f]{3})\z/i
+               h = $1
+               [(h[0] * 2).to_i(16), (h[1] * 2).to_i(16), (h[2] * 2).to_i(16)]
+             else
+               BASE_RGB[color_name] || [255, 255, 255]
+             end
+
+      if @animate.to_s.downcase == "fade"
+        factor = (Math.sin(tick + phase_offset) + 1.0) / 2.0
+        f = 0.35 + 0.65 * factor
+        r = (base[0] * f).clamp(0, 255).to_i
+        g = (base[1] * f).clamp(0, 255).to_i
+        b = (base[2] * f).clamp(0, 255).to_i
+        glow = (factor > 0.85) ? ";1" : ""
+        return "\e[38;2;#{r};#{g};#{b}#{glow}m#{text}#{self.class.ansi_reset}"
+      else
+        out = String.new("")
+        char_count = 0
+        in_escape = false
+        escape_buf = String.new("")
+
+        text.to_s.each_char do |ch|
+          if ch == "\e"
+            in_escape = true
+            escape_buf << ch
+            next
+          end
+          if in_escape
+            escape_buf << ch
+            if ch =~ /[a-zA-Z]/
+              in_escape = false
+              out << escape_buf
+              escape_buf.clear
+            end
+            next
+          end
+
+          if ch == " " || ch == "\t" || ch == "\r" || ch == "\n"
+            out << ch
+          else
+            phase = char_count * 0.22 + phase_offset
+            factor = (Math.sin(tick + phase) + 1.0) / 2.0
+            f = 0.35 + 0.65 * factor
+            r = (base[0] * f).clamp(0, 255).to_i
+            g = (base[1] * f).clamp(0, 255).to_i
+            b = (base[2] * f).clamp(0, 255).to_i
+            glow = (factor > 0.85) ? ";1" : ""
+            out << "\e[38;2;#{r};#{g};#{b}#{glow}m#{ch}"
+            char_count += 1
+          end
+        end
+        out << self.class.ansi_reset
+        return out
+      end
     end
 
     color_code = self.class.ansi_color(color_name, brightness_level)
@@ -1870,7 +2825,7 @@ class GRmenu
 
       lines << colorize("#{banner_border[:tl]}#{top_fill}#{banner_border[:tr]}", banner_color_cfg, 0.0)
       lines << colorize("#{v_l} #{l_p}#{clean_b}#{r_p} #{v_r}", banner_color_cfg, 0.4)
-      lines << colorize("#{banner_border[:bl]}#{bot_fill}#{border_cfg[:br]}", banner_color_cfg, 0.8)
+      lines << colorize("#{banner_border[:bl]}#{bot_fill}#{banner_border[:br]}", banner_color_cfg, 0.8)
     end
     [lines, box_w]
   end
@@ -2104,7 +3059,9 @@ class GRmenu
       unless active_desc.empty?
         separator_line = v_l_raw + mid_fill + v_r_raw
         rendered_lines << "#{margin_left}#{colorize(separator_line, border_color_cfg, 1.0)}"
-        raw_desc = "* #{active_desc}"
+        pfx = (@style_config&.desc_prefix || @desc_prefix || SetStyle.desc_prefix || "[i]").to_s
+        pfx = "#{pfx} " unless pfx.end_with?(" ")
+        raw_desc = "#{pfx}#{active_desc}"
         pad_d = [avail_w - GRmenu.display_width(raw_desc), 0].max
         desc_text = colorize(raw_desc + (" " * pad_d), { color: "cyan", level: 1 })
         rendered_lines << "#{margin_left}#{v_left} #{desc_text} #{v_right}"
@@ -2184,7 +3141,9 @@ class GRmenu
 
       unless active_desc.empty?
         rendered_lines << "#{margin_left}#{colorize(solid_line, border_color_cfg)}"
-        raw_desc = "* #{active_desc}"
+        pfx = (@style_config&.desc_prefix || @desc_prefix || SetStyle.desc_prefix || "[i]").to_s
+        pfx = "#{pfx} " unless pfx.end_with?(" ")
+        raw_desc = "#{pfx}#{active_desc}"
         pad_d = [avail_w - GRmenu.display_width(raw_desc), 0].max
         desc_text = colorize(raw_desc + (" " * pad_d), { color: "cyan", level: 1 })
         rendered_lines << "#{margin_left}#{solid_border} #{desc_text} #{solid_border}"
@@ -2216,7 +3175,153 @@ class GRmenu
     end
   end
 
+  def has_active_animation?
+    return true if @animate && ["diagonal", "linear", "fade", "rgb", "rainbow", "chroma", "neon"].include?(@animate.to_s.downcase)
+    return true if has_rgb_animation?
+    configs = [
+      @style_config.border,
+      @style_config.options,
+      @style_config.focus,
+      @style_config.title,
+      @style_config.banner,
+      @style_config.subtitle,
+      @style_config.divider
+    ]
+    configs.any? do |c|
+      if c.is_a?(Hash)
+        val = (c[:color] || c["color"]).to_s.downcase.strip
+        val.start_with?("neon")
+      else
+        false
+      end
+    end
+  end
+
+  def style(css_content)
+    parsed = self.class.parse_config_text(css_content)
+    m = ((parsed[:sections] && parsed[:sections]["menu"]) || {}).merge(parsed[:global] || {})
+    if m["style"]
+      @style = m["style"].to_i
+      @border_config = BORDERS[@style] || BORDERS[3]
+    end
+    @banner_style = m["banner_style"].to_i if m["banner_style"]
+    @animate = m["animate"].to_s if m["animate"]
+    @center = (m["center"].to_s != "false") if m.key?("center")
+    if m["border"] || m["border_color"]
+      c, l = self.class.extract_color_and_level(m["border"] || m["border_color"], 1)
+      @style_config.border(c, l)
+    end
+    if m["options"] || m["options_color"]
+      c, l = self.class.extract_color_and_level(m["options"] || m["options_color"], 1)
+      @style_config.options(c, l)
+    end
+    if m["focus"] || m["focus_color"]
+      c, l = self.class.extract_color_and_level(m["focus"] || m["focus_color"], 2)
+      @style_config.focus(c, l)
+    end
+    if m["title"] || m["title_color"]
+      c, l = self.class.extract_color_and_level(m["title"] || m["title_color"], 2)
+      @style_config.title(c, l)
+    end
+    if m["banner"] || m["banner_color"]
+      c, l = self.class.extract_color_and_level(m["banner"] || m["banner_color"], 2)
+      @style_config.banner(c, l)
+    end
+    if m["subtitle"] || m["subtitle_color"]
+      c, l = self.class.extract_color_and_level(m["subtitle"] || m["subtitle_color"], 1)
+      @style_config.subtitle(c, l)
+    end
+    if m["divider"] || m["divider_color"]
+      c, l = self.class.extract_color_and_level(m["divider"] || m["divider_color"], 1)
+      @style_config.divider(c, l)
+    end
+    if m["desc_prefix"] || m["description_prefix"] || m["prefix"]
+      @style_config.desc_prefix(m["desc_prefix"] || m["description_prefix"] || m["prefix"])
+    end
+    @style_config.font(m["font"].to_i) if m["font"]
+    self
+  end
+
+  def export_config(path = nil)
+    if path.nil?
+      caller_loc = caller_locations.find { |c| !c.path.include?(__FILE__) }
+      base = caller_loc ? caller_loc.path.sub(/\.rb$/, '') : "theme"
+      path = "#{base}.gr"
+    end
+    b_cfg = @style_config&.border || SetStyle.border
+    t_cfg = @style_config&.title || SetStyle.title
+    f_cfg = @style_config&.focus || SetStyle.focus
+    o_cfg = @style_config&.options || SetStyle.options
+    bn_cfg = @style_config&.banner || SetStyle.banner
+    s_cfg = @style_config&.subtitle || SetStyle.subtitle
+    d_cfg = @style_config&.divider || SetStyle.divider
+    dp_val = @style_config&.desc_prefix || SetStyle.desc_prefix
+
+    lines = ["GRmenu::config<-1->", ""]
+    lines << "@theme:: \"#{File.basename(path, '.gr').capitalize}\""
+    lines << "@author:: \"grcode\""
+    lines << "@version:: \"1.0\""
+    lines << ""
+    lines << "<<menu"
+    lines << "  style:: #{@style || 3}"
+    lines << "  banner_style:: #{@banner_style || 3}"
+    lines << "  font:: #{@style_config&.font || SetStyle.font}"
+    lines << "  animate:: #{@animate || 'rgb'}"
+    lines << "  center:: #{@center.nil? ? true : @center}"
+    lines << "  desc_prefix:: #{dp_val}"
+    lines << "  border:: #{b_cfg[:color]}:#{b_cfg[:level]}"
+    lines << "  title:: #{t_cfg[:color]}:#{t_cfg[:level]}"
+    lines << "  focus:: #{f_cfg[:color]}:#{f_cfg[:level]}"
+    lines << "  options:: #{o_cfg[:color]}:#{o_cfg[:level]}"
+    lines << "  banner:: #{bn_cfg[:color]}:#{bn_cfg[:level]}"
+    lines << "  subtitle:: #{s_cfg[:color]}:#{s_cfg[:level]}"
+    lines << "  divider:: #{d_cfg[:color]}:#{d_cfg[:level]}"
+    lines << ">>"
+    lines << ""
+    lines << "<<table"
+    lines << "  style:: #{@style || 3}"
+    lines << "  header_color:: yellow:2"
+    lines << "  border_color:: #{b_cfg[:color]}:#{b_cfg[:level]}"
+    lines << "  selected_row:: #{f_cfg[:color]}:#{f_cfg[:level]}"
+    lines << "  row_color:: white:1"
+    lines << "  zebra_striping:: true"
+    lines << ">>"
+    lines << ""
+    lines << "<<card"
+    lines << "  style:: 7"
+    lines << "  border_color:: #{b_cfg[:color]}:#{b_cfg[:level]}"
+    lines << "  title_color:: #{t_cfg[:color]}:#{t_cfg[:level]}"
+    lines << "  content_color:: white:1"
+    lines << ">>"
+    lines << ""
+    lines << "<<slider"
+    lines << "  style:: #{@style || 3}"
+    lines << "  color:: #{b_cfg[:color]}:#{b_cfg[:level]}"
+    lines << "  fill_char:: █"
+    lines << "  empty_char:: ░"
+    lines << ">>"
+    lines << ""
+    lines << "<<checkbox"
+    lines << "  style:: #{@style || 3}"
+    lines << "  color:: #{b_cfg[:color]}:#{b_cfg[:level]}"
+    lines << "  checked_mark:: [X]"
+    lines << "  unchecked_mark:: [ ]"
+    lines << ">>"
+    lines << ""
+    File.write(path, lines.join("\n") + "\n")
+    path
+  end
+  alias_method :export_theme, :export_config
+
   def draw(size_max: 20, min_width: nil)
+    if ARGV.any? { |a| ["-theme", "--theme", "-ex", "--export-theme"].include?(a.to_s.downcase) }
+      out_idx = ARGV.index { |a| ["-o", "--out", "--output"].include?(a.to_s.downcase) }
+      target_file = out_idx ? ARGV[out_idx + 1] : "tema_exportado.gr"
+      export_config(target_file)
+      Kernel.puts Color.bright_green("[OK] Tema exportado exitosamente a: #{target_file}")
+      exit(0)
+    end
+
     target_width = min_width || size_max || 20
     action_to_execute = nil
 
@@ -2224,6 +3329,11 @@ class GRmenu
 
     begin
       Kernel.print("#{HIDE_CURSOR}#{CLEAR_SCREEN_SEQUENCE}")
+
+      if @animate && !["false", "rgb", "", "nil"].include?(@animate.downcase)
+        intro_lines = render_lines(target_width)
+        self.class.animate_render(intro_lines, @animate)
+      end
 
       if is_tty
         $stdin.raw do |raw_input_stream|
@@ -2266,7 +3376,7 @@ class GRmenu
     @rgb_tick = 0.0
     draw_frame(target_width)
 
-    animating = has_rgb_animation?
+    animating = has_active_animation?
 
     while true
       if animating

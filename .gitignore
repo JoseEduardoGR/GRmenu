@@ -14,8 +14,17 @@ pkg/
 e.rb
 ruby/e.rb
 **/e.rb
+a.rb
+ruby/a.rb
+**/a.rb
+j.rb
+ruby/j.rb
+**/j.rb
 example.py
 python/example.py
 
 # Configs exportados con GRmenu.ExportConfig / python -m GRmenu -ex
 *.gr
+!data/themes/*.gr
+!ruby/data/themes/*.gr
+
