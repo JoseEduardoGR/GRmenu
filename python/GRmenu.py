@@ -1586,7 +1586,20 @@ class GRmenu():
                 if GRmenu._image_protocol() == "kitty":
                     self._delete_shown_images()
                 self._image_shown = False
-            print(self._clear_seq, end="")
+            # Solo "vuelve el cursor al origen" (\x1b[H), SIN borrar la
+            # pantalla antes de redibujar: un clear completo (`_clear_seq`,
+            # con 2J) deja la terminal en negro durante el instante entre
+            # el borrado y el siguiente print, lo que se ve como parpadeo
+            # (mucho mas notorio con `animate`, que redibuja ~28 veces por
+            # segundo aunque no se toque ninguna tecla). Al no borrar,
+            # cada frame nuevo pisa encima del anterior caracter a
+            # caracter; lo que pueda quedar de mas abajo (por ejemplo si
+            # el frame anterior era mas alto, con un submenu abierto que
+            # se acaba de cerrar) se limpia DESPUES de terminar de
+            # imprimir el frame nuevo completo, con `\x1b[J` (borra desde
+            # el cursor hacia abajo), asi nunca se ve un hueco en blanco
+            # encima de contenido que ya esta dibujado.
+            sys.stdout.write("\x1b[H")
 
             if searching:
                 # En modo busqueda cualquier tecla imprimible (incluidas
@@ -1748,6 +1761,8 @@ class GRmenu():
                         click_regions.append((abs_row, abs_row + 1, col_start, col_start + w, node_p, target))
                 print(outer_pad + "  ".join(row_texts))
             self._click_regions = click_regions
+            sys.stdout.write("\x1b[J")  # borra cualquier resto de un frame anterior mas alto
+            sys.stdout.flush()
 
             if key == b'\r' and not self._preview and not isinstance(focus_row, GRSubMenu):
                 # Si la fila resaltada es un GRSubMenu, Enter ya la entro
