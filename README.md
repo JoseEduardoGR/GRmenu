@@ -4,7 +4,7 @@
 
 **Suite TUI y Menus Interactivos para Terminal en Modo TTY Crudo**
 
-Soporte completo para **Ruby (v4.0.1)** y **Python (v0.2)**, con soporte de raton ANSI SGR 1006 (clic y rueda de scroll), submenus en cascada de hasta 3 niveles (*Sub del Sub*), menu por pestanas multitarea (`GRmenu.tabs`), rediseno de input con marco integrado y cursor en vivo, sistema de temas .gr tipo CSS, exportacion CLI (-theme), tablas interactivas con buscador y ordenamiento, Banners ASCII 3D, seleccion multiple con checkboxes, sliders en tiempo real, visor de imagenes ANSI TrueColor, modo cromatico RGB y Living Neon animado a 30 FPS, colores hexadecimales directos (#RRGGBB), 90+ colores calibrados, modales nativos, buscador en vivo, cuadriculas 2D, barras de progreso y spinners sin dependencias externas.
+Soporte completo para **Ruby (v4.0.1)** y **Python (v4.0.1)**, con soporte de raton ANSI SGR 1006 (clic y rueda de scroll), submenus en cascada de hasta 3 niveles (*Sub del Sub*), menu por pestanas multitarea (`GRmenu.tabs`), rediseno de input con marco integrado y cursor en vivo, sistema de temas .gr tipo CSS, exportacion CLI (-theme), tablas interactivas con buscador y ordenamiento, Banners ASCII 3D, seleccion multiple con checkboxes, sliders en tiempo real, visor de imagenes ANSI TrueColor, modo cromatico RGB y Living Neon animado a 30 FPS, colores hexadecimales directos (#RRGGBB), 90+ colores calibrados, modales nativos, buscador en vivo, cuadriculas 2D, barras de progreso y spinners sin dependencias externas.
 
 | Ruby (Gema) | Python (PyPI) |
 |:---:|:---:|
@@ -474,6 +474,12 @@ menu.SetStyle.Border("magenta")
 menu.SetStyle.Options("white")
 menu.SetStyle.Focus("yellow", 2)
 menu.draw()
+```
+
+Tambien puedes probar el ejemplo interactivo de calculadora en terminal:
+
+```bash
+python python/example_calculator.py
 ```
 
 ---
