@@ -6,15 +6,15 @@ require 'zlib'
 require 'open3'
 
 class GRmenu
-  VERSION               = "4.0.1"
+  VERSION               = "4.0.2"
   CLEAR_SCREEN_SEQUENCE = "\e[H\e[2J\e[3J"
   HIDE_CURSOR           = "\e[?25l"
   SHOW_CURSOR           = "\e[?25h"
   CURSOR_HOME           = "\e[H"
   CLEAR_TO_EOL          = "\e[K"
   CLEAR_TO_EOS          = "\e[J"
-  ENABLE_MOUSE          = "\e[?1000h\e[?1006h"
-  DISABLE_MOUSE         = "\e[?1000l\e[?1006l"
+  ENABLE_MOUSE          = "\e[?1000h\e[?1002h\e[?1006h"
+  DISABLE_MOUSE         = "\e[?1006l\e[?1002l\e[?1000l"
 
   def self.find_data_file(filename)
     local_path = File.expand_path("data/#{filename}", __dir__)
@@ -1448,27 +1448,37 @@ class GRmenu
     return nil if first_char.nil?
 
     if first_char == "\e"
-      begin
-        second = is_tty ? input_stream.read_nonblock(1) : input_stream.read(1)
-        if second
-          first_char << second
-          if second == "[" || second == "O"
-            while true
-              ch = is_tty ? input_stream.read_nonblock(1) : input_stream.read(1)
-              break if ch.nil?
-              first_char << ch
-              break if ch =~ /[a-zA-Z~]/
-            end
-          end
+      seq = first_char.dup
+      if is_tty
+        while (ch = (input_stream.getch(min: 0, time: 0.1) rescue nil))
+          seq << ch
+          break if seq =~ /[a-zA-Z~]\z/
         end
-      rescue IO::WaitReadable, IO::EAGAINWaitReadable, EOFError
+      else
+        while (IO.select([input_stream], nil, nil, 0.05) rescue nil)
+          ch = (input_stream.read(1) rescue nil)
+          break if ch.nil?
+          seq << ch
+          break if seq =~ /[a-zA-Z~]\z/
+        end
       end
+
+      if seq == "\e[M"
+        cb = is_tty ? (input_stream.getch(min: 0, time: 0.1) rescue nil) : (input_stream.read(1) rescue nil)
+        cx = is_tty ? (input_stream.getch(min: 0, time: 0.1) rescue nil) : (input_stream.read(1) rescue nil)
+        cy = is_tty ? (input_stream.getch(min: 0, time: 0.1) rescue nil) : (input_stream.read(1) rescue nil)
+        if cb && cx && cy
+          btn_c = cb.ord - 32
+          col_c = cx.ord - 32
+          row_c = cy.ord - 32
+          return "\e[<#{btn_c};#{col_c};#{row_c}M"
+        end
+      end
+
+      return seq
     elsif first_char == "\x00" || first_char == "\xe0"
-      begin
-        second_char = is_tty ? input_stream.read_nonblock(1) : input_stream.read(1)
-        first_char << second_char if second_char
-      rescue IO::WaitReadable, IO::EAGAINWaitReadable, EOFError
-      end
+      second_char = is_tty ? (input_stream.getch(min: 0, time: 0.1) rescue nil) : (input_stream.read(1) rescue nil)
+      return first_char + second_char if second_char
     end
 
     first_char
@@ -2587,8 +2597,12 @@ class GRmenu
     @image        = image || keyword_arguments[:image]
     @image_width  = (image_width || keyword_arguments[:image_width])&.to_i
     @animate      = (keyword_arguments[:animate] || (@@global_theme.is_a?(Hash) && @@global_theme.dig(:sections, 'menu', 'animate')) || false).to_s
-    @desc_prefix  = keyword_arguments[:desc_prefix] || keyword_arguments[:description_prefix]
-    @mouse        = (mouse == true || keyword_arguments[:mouse] == true || mouse.to_s == 'true' || keyword_arguments[:mouse].to_s == 'true' || (theme_menu_sec['mouse'].to_s == 'true'))
+    m_val = mouse.nil? ? keyword_arguments[:mouse] : mouse
+    if m_val.nil?
+      @mouse = theme_menu_sec.key?('mouse') ? (theme_menu_sec['mouse'].to_s != 'false') : true
+    else
+      @mouse = (m_val == true || m_val.to_s == 'true')
+    end
 
     t_sec = (@@global_theme.is_a?(Hash) && @@global_theme.dig(:sections, "tabs")) || {}
     @active_tab_color = (active_tab_color || keyword_arguments[:active_tab_color] || t_sec["active_tab"] || t_sec["active_tab_color"] || "yellow").to_s

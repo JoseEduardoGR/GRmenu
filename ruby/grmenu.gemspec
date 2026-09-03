@@ -2,7 +2,7 @@
 
 Gem::Specification.new do |spec|
   spec.name          = "grmenu"
-  spec.version       = "4.0.1"
+  spec.version       = "4.0.2"
   spec.authors       = ["grcode"]
   spec.email         = ["garabatoangelopolis@gmail.com"]
 

@@ -4,7 +4,7 @@
 
 **Suite TUI y Menus Interactivos para Terminal en Modo TTY Crudo**
 
-Soporte completo para **Ruby (v4.0.1)** y **Python (v4.0.1)**, con soporte de raton ANSI SGR 1006 (clic y rueda de scroll), submenus en cascada de hasta 3 niveles (*Sub del Sub*), menu por pestanas multitarea (`GRmenu.tabs`), rediseno de input con marco integrado y cursor en vivo, sistema de temas .gr tipo CSS, exportacion CLI (-theme), tablas interactivas con buscador y ordenamiento, Banners ASCII 3D, seleccion multiple con checkboxes, sliders en tiempo real, visor de imagenes ANSI TrueColor, modo cromatico RGB y Living Neon animado a 30 FPS, colores hexadecimales directos (#RRGGBB), 90+ colores calibrados, modales nativos, buscador en vivo, cuadriculas 2D, barras de progreso y spinners sin dependencias externas.
+Soporte completo para **Ruby (v4.0.2)** y **Python (v4.0.1)**, con soporte de raton ANSI SGR 1006 (clic y rueda de scroll), submenus en cascada de hasta 3 niveles (*Sub del Sub*), menu por pestanas multitarea (`GRmenu.tabs`), rediseno de input con marco integrado y cursor en vivo, sistema de temas .gr tipo CSS, exportacion CLI (-theme), tablas interactivas con buscador y ordenamiento, Banners ASCII 3D, seleccion multiple con checkboxes, sliders en tiempo real, visor de imagenes ANSI TrueColor, modo cromatico RGB y Living Neon animado a 30 FPS, colores hexadecimales directos (#RRGGBB), 90+ colores calibrados, modales nativos, buscador en vivo, cuadriculas 2D, barras de progreso y spinners sin dependencias externas.
 
 | Ruby (Gema) | Python (PyPI) |
 |:---:|:---:|
@@ -25,7 +25,7 @@ Soporte completo para **Ruby (v4.0.1)** y **Python (v4.0.1)**, con soporte de ra
 1. [Caracteristicas Principales](#caracteristicas-principales)
 2. [Instalacion](#instalacion)
 3. [Guia de Inicio Rapido (Ruby y Python)](#guia-de-inicio-rapido)
-4. [Nuevas Funcionalidades en Ruby (v4.0.1)](#nuevas-funcionalidades-en-ruby-v401)
+4. [Nuevas Funcionalidades en Ruby (v4.0.2)](#nuevas-funcionalidades-en-ruby-v402)
    - [1. Submenus en Cascada de hasta 3 Niveles (Sub del Sub)](#1-submenus-en-cascada-de-hasta-3-niveles-sub-del-sub)
    - [2. Menu por Pestanas Multitarea (GRmenu.tabs)](#2-menu-por-pestanas-multitarea-grmenutabs)
    - [3. Soporte Completo de Raton ANSI SGR 1006 (mouse: true)](#3-soporte-completo-de-raton-ansi-sgr-1006-mouse-true)
@@ -156,7 +156,7 @@ menu.draw()
 
 ---
 
-## Nuevas Funcionalidades en Ruby (v4.0.1)
+## Nuevas Funcionalidades en Ruby (v4.0.2)
 
 ### 1. Submenus en Cascada de hasta 3 Niveles (*Sub del Sub*)
 

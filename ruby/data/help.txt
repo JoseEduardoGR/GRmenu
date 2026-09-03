@@ -8,7 +8,7 @@
 {bright_cyan}╚═══════════════════════════════════════════════════════════════════════════════════╝{reset}
 
 {bright_cyan}╔═══════════════════════════════════════════════════════════════════════════════════╗{reset}
-{bright_cyan}║{bright_yellow}             DOCUMENTACION Y GUIA COMPLETA DE PARAMETROS (v4.0.1)                  {bright_cyan}║{reset}
+{bright_cyan}║{bright_yellow}             DOCUMENTACION Y GUIA COMPLETA DE PARAMETROS (v4.0.2)                  {bright_cyan}║{reset}
 {bright_cyan}║{gray}  Soporte Raton SGR 1006, Submenus en Cascada 3 Niveles, Pestanas y CSS .gr        {bright_cyan}║{reset}
 {bright_cyan}╚═══════════════════════════════════════════════════════════════════════════════════╝{reset}
 
