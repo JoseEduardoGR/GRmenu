@@ -2,7 +2,7 @@
 
 Gem::Specification.new do |spec|
   spec.name          = "grmenu"
-  spec.version       = "4.0.0"
+  spec.version       = "4.0.1"
   spec.authors       = ["grcode"]
   spec.email         = ["garabatoangelopolis@gmail.com"]
 
@@ -16,9 +16,22 @@ Gem::Specification.new do |spec|
   spec.metadata["bug_tracker_uri"] = "https://github.com/JoseEduardoGR/GRmenu/issues"
   spec.metadata["changelog_uri"]   = "https://github.com/JoseEduardoGR/GRmenu/commits/main"
 
-  spec.files = Dir.chdir(File.expand_path(__dir__)) do
-    Dir["*.{rb,md}", "data/**/*.{json,txt,gr}"].reject { |f| f =~ /\A[aj]\.rb\z/ }
-  end
+  spec.files = [
+    "grmenu.rb",
+    "README.md",
+    "LICENSE",
+    "data/borders.json",
+    "data/colors.json",
+    "data/fonts.json",
+    "data/help.txt",
+    "data/themes/cyberpunk.gr",
+    "data/themes/dracula.gr",
+    "data/themes/matrix.gr",
+    "data/themes/monokai.gr",
+    "data/themes/neon_red.gr",
+    "data/themes/nord.gr",
+    "data/themes/sunset.gr"
+  ]
   spec.extra_rdoc_files = ["README.md"]
   spec.rdoc_options     = ["--main", "README.md"]
   spec.require_paths    = ["."]
