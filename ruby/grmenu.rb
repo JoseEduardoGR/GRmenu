@@ -6,7 +6,7 @@ require 'zlib'
 require 'open3'
 
 class GRmenu
-  VERSION               = "4.0.2"
+  VERSION               = "4.0.3"
   CLEAR_SCREEN_SEQUENCE = "\e[H\e[2J\e[3J"
   HIDE_CURSOR           = "\e[?25l"
   SHOW_CURSOR           = "\e[?25h"
