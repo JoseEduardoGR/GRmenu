@@ -8,8 +8,8 @@
 {bright_cyan}╚═══════════════════════════════════════════════════════════════════════════════════╝{reset}
 
 {bright_cyan}╔═══════════════════════════════════════════════════════════════════════════════════╗{reset}
-{bright_cyan}║{bright_yellow}                DOCUMENTACION Y GUIA COMPLETA DE PARAMETROS (v4.0)                 {bright_cyan}║{reset}
-{bright_cyan}║{gray}    Referencia exhaustiva de clases, metodos publicos, colores y configuracion     {bright_cyan}║{reset}
+{bright_cyan}║{bright_yellow}             DOCUMENTACION Y GUIA COMPLETA DE PARAMETROS (v4.0.1)                  {bright_cyan}║{reset}
+{bright_cyan}║{gray}  Soporte Raton SGR 1006, Submenus en Cascada 3 Niveles, Pestanas y CSS .gr        {bright_cyan}║{reset}
 {bright_cyan}╚═══════════════════════════════════════════════════════════════════════════════════╝{reset}
 
 {bright_magenta}═════════════════════════════════════════════════════════════════════════════════════{reset}
@@ -34,6 +34,13 @@
   {bright_green}* center:{reset}       {white}[Boolean]{reset}      -> Centrado horizontal automatico en consola (default: true).
   {bright_green}* animate:{reset}      {white}[String/Bool]{reset}  -> Animacion de entrada ("diagonal", "linear", "fade", "rgb", false).
   {bright_green}* desc_prefix:{reset}  {white}[String]{reset}       -> Prefijo del pie de tooltip/descripcion (default: "[i]").
+  {bright_green}* mouse:{reset}        {white}[Boolean]{reset}      -> Habilita raton ANSI SGR 1006 (clic, scroll, submenus) (default: false).
+  {bright_green}* tabs:{reset}         {white}[Hash]{reset}         -> Menu multitarea por pestanas { "Pestana 1" => [...], ... }.
+
+  {cyan}CONSTRUCTOR ALTERNATIVO PARA PESTANAS:{reset}
+  {bright_white}* GRmenu.tabs(tabs_hash, **opciones){reset}
+    Crea directamente un menu organizado por pestanas horizontales:
+    {bright_white}menu = GRmenu.tabs({ "Web" => [...], "Bases" => [...] }, mouse: true, style: 3){reset}
 
   {cyan}METODOS DE INSTANCIA:{reset}
   {bright_white}* menu.draw(size_max: 40, min_width: nil){reset}
@@ -45,7 +52,7 @@
 
   {bright_white}* menu.style(bloque_gr){reset}
     Aplica configuracion CSS al menu usando un bloque de texto (ej: <<-GR ... GR).
-    Permite definir bordes, animaciones, prefijos y colores inline sin archivos externos.
+    Permite definir bordes, animaciones, prefijos, mouse y colores inline sin archivos externos.
 
   {bright_white}* menu.export_theme(ruta = nil){reset} (Alias: {bright_white}menu.export_config{reset})
     Guarda la configuracion actual de este menu en un archivo de tema .gr.
@@ -68,7 +75,7 @@
 
   {cyan}3. Arreglo [Nombre, Accion]:{reset}
      {bright_white}["Iniciar Servidor Web", method(:iniciar_servidor)]{reset}
-     -> Muestra la etiqueta personalizada y ejecuta la accion con Enter.
+     -> Muestra la etiqueta personalizada y ejecuta la accion con Enter o doble clic.
 
   {cyan}4. Arreglo con Tooltip Dinamico [Nombre, Accion, Descripcion]:{reset}
      {bright_white}["Crear Respaldo", :respaldo, "Copia de seguridad en S3"]{reset}
@@ -80,6 +87,27 @@
 
   {cyan}6. Hash explicito:{reset}
      {bright_white}{ name: "Configurar", action: method(:config), desc: "Ajustes del sistema" }{reset}
+
+  {cyan}7. Submenus anidados en cascada (Hasta 3 niveles: Original -> Sub 1 -> Sub 2):{reset}
+     {bright_white}[{reset}
+     {bright_white}  ["Servidores", [{reset}
+     {bright_white}    ["Servidores Web", [{reset}
+     {bright_white}      ["Iniciar NGINX", -> { puts "NGINX OK" }],{reset}
+     {bright_white}      ["Reiniciar Apache", -> { puts "Apache OK" }]{reset}
+     {bright_white}    ]],{reset}
+     {bright_white}    ["Bases de Datos", [{reset}
+     {bright_white}      ["PostgreSQL", -> { puts "PG OK" }],{reset}
+     {bright_white}      ["Redis", -> { puts "Redis OK" }]{reset}
+     {bright_white}    ]]{reset}
+     {bright_white}  ], "Administra servidores (hasta 3 niveles)"]{reset}
+     {bright_white}]{reset}
+
+     -> {yellow}Visual:{reset} Muestra el indicador {cyan}▶{reset} en opciones con submenus. Al pulsar {yellow}[->]{reset} o {yellow}Clic{reset},
+        despliega cajas unidas por puentes dobles {cyan}──{reset} ({bright_white}Box 0 ── Box 1 ── Box 2{reset}).
+     -> {yellow}Responsivo:{reset} Si la terminal no tiene espacio para las 3 cajas, desliza una ventana
+        fluida ({bright_white}Box 1 ── Box 2{reset}) para no romper la pantalla.
+     -> {yellow}Teclado:{reset} {yellow}→{reset} abre nivel siguiente, {yellow}← / Esc{reset} regresa al nivel anterior, {yellow}Enter{reset} ejecuta accion final.
+     -> {yellow}Raton:{reset} Clic en cualquier caja enfoca ese nivel; clic en la accion final la ejecuta. Scroll en el nivel activo.
 
 {bright_magenta}═════════════════════════════════════════════════════════════════════════════════════{reset}
 {bright_yellow}[3] PERSONALIZACION DE COLORES Y MODO RGB: menu.set_style{reset}
@@ -107,85 +135,103 @@
 {bright_yellow}[4] TABLAS, TARJETAS Y ALERTAS EJECUTIVAS{reset}
 {bright_magenta}═════════════════════════════════════════════════════════════════════════════════════{reset}
 
-  {bright_green}* GRmenu.table(headers: [...], rows: [...], title: nil, search: false, sort: false, page_size: 8){reset}
+  {bright_green}* GRmenu.table(headers, rows, ...){reset}
     Renderiza una tabla interactiva con bordes blindados y auto-ajuste de columnas.
-    - {cyan}headers:{reset}   [Array] Nombres de columnas (ej: ["ID", "SERVICIO", "ESTADO"]).
-    - {cyan}rows:{reset}      [Array] Matriz de filas o lista de hashes.
-    - {cyan}search:{reset}    [Boolean] Activa buscador en vivo reactivo pulsando cualquier letra.
-    - {cyan}sort:{reset}      [Boolean] Permite ordenar columnas en orden asc/desc pulsando 's'.
-    - {cyan}page_size:{reset} [Integer] Limite de filas visibles con auto-scroll.
-    - {cyan}Teclas:{reset}    {yellow}↑ / ↓{reset} (navegar), {yellow}s{reset} (ordenar), {yellow}Enter{reset} (elegir fila), {yellow}Esc / q{reset} (salir).
-    - {cyan}Retorna:{reset}   La fila seleccionada por el usuario (o nil si cancela).
+    Acepta tanto argumentos posicionales como por palabra clave:
+    - {bright_white}GRmenu.table(["ID", "Servicio", "RAM"], [["1", "nginx", "12MB"]], style: 3, header_color: "yellow"){reset}
+    - {bright_white}GRmenu.table(headers: [...], rows: [...], search: true, sort: true, page_size: 8){reset}
+    - {cyan}search:{reset}       [Boolean] Activa buscador en vivo reactivo escribiendo texto.
+    - {cyan}sort:{reset}         [Boolean] Permite ordenar columnas en orden asc/desc pulsando 's'.
+    - {cyan}page_size:{reset}    [Integer] Limite de filas visibles con auto-scroll.
+    - {cyan}header_color:{reset} [String] Color del encabezado de columnas (soporta neon).
+    - {cyan}selected_row:{reset} [String] Color de la fila seleccionada.
+    - {cyan}Teclas:{reset}       {yellow}↑ / ↓{reset} (navegar), {yellow}s{reset} (ordenar), {yellow}Enter{reset} (elegir fila), {yellow}Esc / q{reset} (salir).
+    - {cyan}Retorna:{reset}      La fila seleccionada por el usuario (o nil si cancela).
 
-  {bright_green}* GRmenu.card(title: nil, content: "", style: 7, border_color: "cyan", title_color: "yellow", content_color: "white", pause: true){reset}
+  {bright_green}* GRmenu.card(title, content, ...){reset}
     Recuadro estilizado para reportes y mensajes. Incluye word-wrapping automatico
     para parrafos largos sin deformar bordes ni desbordar la consola.
-    - {cyan}title:{reset}         [String] Titulo superior centrado.
-    - {cyan}content:{reset}       [String] Mensaje o reporte (admite parrafos continuos o \n).
-    - {cyan}border_color:{reset}  [String] Color del marco (soporta hex, neon y "rgb").
-    - {cyan}title_color:{reset}   [String] Color del texto del titulo.
-    - {cyan}content_color:{reset} [String] Color del contenido.
-    - {cyan}style:{reset}         [Integer 1..20] Estilo de marco (default: 7).
+    Acepta argumentos posicionales y por palabra clave:
+    - {bright_white}GRmenu.card("Titulo Noticia", "Cuerpo del mensaje...", style: 3, border_color: "neon_cyan"){reset}
+    - {bright_white}GRmenu.card("Solo Mensaje sin Titulo", pause: false){reset}
+    - {bright_white}GRmenu.card(title: "Status", content: "OK", style: 7, border_color: "green", pause: false){reset}
+    - {cyan}pause:{reset}        [Boolean] Si es true (default en standalone), espera Enter; si es false (ideal para sleep), no bloquea.
+    - {cyan}border_color:{reset} [String] Color del marco (soporta hex, neon y "rgb").
+    - {cyan}title_color:{reset}  [String] Color del texto del titulo.
+    - {cyan}content_color:{reset}[String] Color del contenido.
+    - {cyan}style:{reset}        [Integer 1..20] Estilo de marco (default: 7).
 
-  {bright_green}* GRmenu.alert(tipo, mensaje, title: nil, style: 3, border_color: nil, title_color: nil, pause: true){reset}
+  {bright_green}* GRmenu.alert(tipo, mensaje, ...){reset}
     Emite una notificacion modal con tag visual y paleta correspondiente:
     - {cyan}:success{reset} -> Verde  [✔ EXITO]
     - {cyan}:error{reset}   -> Rojo   [✖ ERROR]
     - {cyan}:warning{reset} -> Ambar  [⚠ AVISO]
     - {cyan}:info{reset}    -> Cian   [ℹ INFO]
+    - Acepta {cyan}pause: false{reset} para desvanecer sin bloquear.
     - Soporta colores personalizados con {cyan}border_color:{reset} y {cyan}title_color:{reset}.
 
 {bright_magenta}═════════════════════════════════════════════════════════════════════════════════════{reset}
-{bright_yellow}[5] MODALES, CHECKBOXES Y CONTROLES INTERACTIVOS{reset}
+{bright_yellow}[5] PESTANAS, ENTRADA DE DATOS (INPUT), MODALES Y CONTROLES{reset}
 {bright_magenta}═════════════════════════════════════════════════════════════════════════════════════{reset}
 
-  {bright_green}* GRmenu.checkbox(items, title: "...", color: "cyan", style: 3, page_size: 8){reset}
-    (Alias: {bright_white}GRmenu.select_multi{reset}, {bright_white}GRmenu.multiselect{reset})
-    Lista interactiva con casillas de verificacion [X] / [ ].
-    - {cyan}items:{reset}       [Array] Strings o arreglos [Nombre, checked, desc].
-    - {cyan}Teclas:{reset}      {yellow}Espacio{reset} (marcar), {yellow}a{reset} (todos), {yellow}n{reset} (ninguno), {yellow}i{reset} (invertir), {yellow}Enter{reset} (confirmar).
-    - {cyan}Retorna:{reset}     {bright_yellow}Array{reset} con los elementos seleccionados.
+  {bright_green}* GRmenu.tabs(tabs_hash, title: nil, style: 3, mouse: false, ...){reset}
+    Crea un panel multitarea dividido en pestanas horizontales superiores:
+    {bright_white}GRmenu.tabs({{reset}
+    {bright_white}  "Servidores"     => [["NGINX", -> {}], ["Apache", -> {}]],{reset}
+    {bright_white}  "Bases de Datos" => [["Postgres", -> {}], ["Redis", -> {}]],{reset}
+    {bright_white}  "Ajustes"        => [["Tema Neon", -> {}]]{reset}
+    {bright_white}}, title: "Panel Multitarea", style: 3, mouse: true).draw{reset}
+    - {cyan}Navegacion:{reset} Pulsa {yellow}Tab{reset} para avanzar de pestana, {yellow}Shift+Tab{reset} para retroceder, o haz {yellow}clic{reset} en el titulo de la pestana.
 
-  {bright_green}* GRmenu.slider(prompt, min: 0, max: 100, step: 1, default: 50, unit: ""){reset}
-    (Alias: {bright_white}GRmenu.range{reset})
+  {bright_green}* GRmenu.input(prompt_o_titulo, ...){reset}
+    Rediseno de caja de texto con marco integrado, titulo superior centrado en el borde,
+    etiqueta interna ({cyan}label:{reset}), cursor de bloque en vivo {bright_white}█{reset} y soporte de contrasenas.
+    Acepta argumentos posicionales o por palabra clave:
+    - {bright_white}servidor = GRmenu.input(title: "Configuracion", label: "URL del Host:", default: "http://localhost:8080", style: 3){reset}
+    - {bright_white}token    = GRmenu.input(title: "Seguridad", label: "Token Secreto:", password: true, style: 3, border_color: "neon_red"){reset}
+    - {bright_white}nombre   = GRmenu.input("Ingresa tu Nombre:", default: "admin"){reset}
+    - {cyan}password:{reset}     [Boolean] Enmascara el texto con asteriscos (****).
+    - {cyan}default:{reset}      [String] Valor inicial pre-rellenado editable.
+    - {cyan}title_color:{reset}  [String] Color del titulo del marco superior.
+    - {cyan}label_color:{reset}  [String] Color de la etiqueta interna.
+    - {cyan}border_color:{reset} [String] Color del borde.
+    - {cyan}Teclas:{reset}       Escribir texto, {yellow}Backspace{reset} (borrar), {yellow}Ctrl+U{reset} (limpiar), {yellow}Enter{reset} (confirmar).
+
+  {bright_green}* GRmenu.checkbox(items, ...){reset} (Alias: {bright_white}GRmenu.select_multi{reset}, {bright_white}GRmenu.multiselect{reset})
+    Lista interactiva con casillas de verificacion [X] / [ ].
+    - Acepta {bright_white}GRmenu.checkbox(["Opcion A", "Opcion B"], title: "Permisos"){reset} o {bright_white}checkbox(items: [...], preselected: [0]){reset}.
+    - {cyan}Teclas:{reset}  {yellow}Espacio{reset} (marcar/desmarcar), {yellow}a{reset} (todos), {yellow}n{reset} (ninguno), {yellow}i{reset} (invertir), {yellow}Enter{reset} (confirmar).
+    - {cyan}Retorna:{reset} {bright_yellow}Array{reset} con los elementos seleccionados.
+
+  {bright_green}* GRmenu.slider(prompt, ...){reset} (Alias: {bright_white}GRmenu.range{reset})
     Control deslizante horizontal en tiempo real con barra de nivel.
-    - {cyan}prompt:{reset}  [String] Mensaje descriptivo.
-    - {cyan}min/max:{reset} [Numeric] Limites inferior y superior.
-    - {cyan}step:{reset}    [Numeric] Incremento por paso (default: 1).
-    - {cyan}unit:{reset}    [String] Unidad de medida (ej: "%", "GB", "px").
-    - {cyan}Teclas:{reset}  {yellow}← / →{reset} (paso), {yellow}↑ / ↓{reset} (paso x5), {yellow}Enter{reset} (guardar).
+    - Acepta {bright_white}GRmenu.slider("Volumen:", min: 0, max: 100, default: 75){reset} o {bright_white}slider(prompt: "Brillo:", min: 0, max: 50){reset}.
+    - {cyan}Teclas:{reset}  {yellow}← / →{reset} (paso normal), {yellow}↑ / ↓{reset} (paso x5), {yellow}Enter{reset} (guardar).
     - {cyan}Retorna:{reset} {bright_yellow}Numeric{reset} con el valor seleccionado.
 
-  {bright_green}* GRmenu.confirm(pregunta, default: true, color: "cyan", style: 3){reset}
+  {bright_green}* GRmenu.confirm(pregunta, ...){reset}
     Modal interactivo con botones [ Sí ] y [ No ].
+    - Acepta {bright_white}GRmenu.confirm("¿Deseas reiniciar?", default: true, style: 3){reset} o {bright_white}confirm(question: "...", default: false){reset}.
     - {cyan}Teclas:{reset}  {yellow}← / → / Tab{reset}, {yellow}s / y{reset} (Si), {yellow}n{reset} (No), {yellow}Enter{reset}.
-    - {cyan}Retorna:{reset} {bright_yellow}true{reset} si confirma Si, {bright_yellow}false{reset} si elige No o cancela.
-
-  {bright_green}* GRmenu.input(prompt, default: "", password: false, color: "cyan", style: 3){reset}
-    Cuadro de entrada de texto interactivo con cursor en vivo y scroll horizontal.
-    - {cyan}password:{reset} [Boolean] Enmascara caracteres con asteriscos (****).
-    - {cyan}Teclas:{reset}   Escribir texto, {yellow}Backspace{reset}, {yellow}Ctrl+U{reset} (limpiar), {yellow}Enter{reset}.
-    - {cyan}Retorna:{reset}  {bright_yellow}String{reset} ingresado por el usuario.
+    - {cyan}Retorna:{reset} {bright_yellow}true{reset} o {bright_yellow}false{reset}.
 
 {bright_magenta}═════════════════════════════════════════════════════════════════════════════════════{reset}
 {bright_yellow}[6] BARRA DE PROGRESO, SPINNER E IMAGENES ANSI TRUECOLOR{reset}
 {bright_magenta}═════════════════════════════════════════════════════════════════════════════════════{reset}
 
-  {bright_green}* GRmenu.progress(total = 100, title: nil, color: "cyan", style: 3, &bloque){reset}
-    Barra de progreso fluida con soporte para status dinámico protegido contra desbordes.
-    - {cyan}Uso con bloque:{reset}
-      {bright_white}GRmenu.progress(100, title: "Instalando", color: "rgb") do |bar|{reset}
-      {bright_white}  bar.advance(25, status: "Descargando paquetes..."){reset}
-      {bright_white}  bar.set(100, status: "Completado con exito"){reset}
-      {bright_white}end{reset}
+  {bright_green}* GRmenu.progress(total = 100, ... &bloque){reset}
+    Barra de progreso fluida con soporte de status dinamico protegido contra desbordes.
+    - Acepta {bright_white}GRmenu.progress(100, title: "Descargando") do |bar| ... end{reset} o con keyword {bright_white}progress(total: 50){reset}.
 
-  {bright_green}* GRmenu.spinner(mensaje = "Cargando...", color: "cyan", delay: 0.08, &bloque){reset}
+  {bright_green}* GRmenu.spinner(mensaje = "Cargando...", ... &bloque){reset}
     Indicador giratorio animado en hilo de ejecucion secundario mientras el bloque corre.
-    - {cyan}Uso:{reset} {bright_white}GRmenu.spinner("Conectando a base de datos...") { sleep 2 }{reset}
+    - Acepta {bright_white}GRmenu.spinner("Compilando assets...") { sleep 1.5 }{reset} o {bright_white}spinner(message: "..."){reset}.
 
-  {bright_green}* GRmenu.image(filepath, width: 40, height: nil, style: 3, color: "cyan"){reset}
-    Decodifica y renderiza imagenes (PNG, JPEG, WEBP, GIF, BMP) con micro-pixeles
-    ANSI TrueColor de 24 bits y escala proporcional exacta con cache instantanea.
+  {bright_green}* GRmenu.image(filepath, width: 40, height: nil, style: 3, color: "cyan", center: true){reset}
+    Decodifica y renderiza imagenes (PNG, JPG, WEBP, GIF, BMP) con micro-subpixeles
+    ANSI TrueColor de 24 bits usando medios bloques {bright_white}▀{reset} (2 pixeles reales verticales por caracter, proporcion 1:1).
+    - Remuestreo de alta fidelidad Lanczos con ImageMagick (Open3) o decodificador nativo de PNG puro (Zlib).
+    - Soporte completo para fondos transparentes (canal alfa PNG).
 
   {bright_green}* GRmenu.banner(texto, delay = 0, color: "magenta", level: 2, style: 3, font: 1){reset}
     Convierte cadenas en arte ASCII 3D con bordes y fuentes personalizables.
@@ -203,44 +249,11 @@
      {bright_white}GRmenu.theme(:monokai){reset}    # Paleta calida amarilla, magenta y naranja
      {bright_white}GRmenu.theme(:sunset){reset}     # Degradados rojo fuego, naranja y dorado
 
-  {cyan}2. Carga de Archivos .gr Externos:{reset}
-     {bright_white}GRmenu.import_config("ruta/mi_tema.gr"){reset}
-
-  {cyan}3. Exportar Tema Activo a Archivo .gr desde Ruby:{reset}
-     {bright_white}menu.export_theme("mi_tema.gr"){reset}
-     {bright_white}GRmenu.export_config("mi_tema.gr"){reset}
-
-  {cyan}4. Extraer Tema desde un Script de Ruby (sin bucles interactivos):{reset}
-     {bright_white}GRmenu.export_from_file("mi_app.rb", "tema_extraido.gr"){reset}
-
-  {cyan}5. Exportar Tema desde Consola / CLI (Banderas automaticas):{reset}
-     # Al pasar -theme a tu script, exporta a .gr y sale inmediatamente:
-     {bright_white}$ ruby mi_script.rb -theme{reset}
-     {bright_white}$ ruby mi_script.rb -theme -o tema_personalizado.gr{reset}
-
-     # Exportar mediante one-liner sin modificar tu script:
-     {bright_white}$ ruby -r./GRmenu -e 'GRmenu.export_from_file("mi_script.rb", "tema.gr")'{reset}
-
-  {cyan}6. CSS Inline en el mismo Codigo Ruby (Estilo <style> con <<-GR):{reset}
-     # Puedes inyectar bloques CSS directamente en tu script sin archivos .gr externos:
-     {bright_white}menu.style(<<-GR){reset}
-       {white}<<menu{reset}
-         {white}style:: 3{reset}
-         {white}animate:: fade{reset}
-         {white}desc_prefix:: ->{reset}
-         {white}border:: red:2{reset}
-         {white}focus:: yellow:2{reset}
-         {white}title:: red:2{reset}
-         {white}banner:: red:2{reset}
-         {white}subtitle:: cyan:1{reset}
-       {white}>>{reset}
-     {bright_white}GR{reset}
-
-  {cyan}7. Especificacion Completa de Bloques en un Archivo .gr:{reset}
+  {cyan}2. Especificacion Completa de Bloques en un Archivo o Bloque CSS .gr:{reset}
      {gray}GRmenu::config<-1->{reset}
-     {white}@theme:: "NombreDelTema"{reset}
-     {white}@author:: "TuNombre"{reset}
-     {white}@version:: "1.0"{reset}
+     {white}@theme:: "CyberNeon"{reset}
+     {white}@author:: "GRcode"{reset}
+     {white}@version:: "4.1"{reset}
 
      {cyan}<<menu{reset}
        {white}style:: 3{reset}                # Estilo de marco 1..20
@@ -248,28 +261,51 @@
        {white}font:: 1{reset}                 # Fuente tipografica 3D 1..10
        {white}animate:: diagonal{reset}       # diagonal, linear, fade, rgb o false
        {white}center:: true{reset}            # Centrado en consola (true / false)
+       {white}mouse:: true{reset}             # Activa soporte de raton (true / false)
        {white}desc_prefix:: [i]{reset}        # Prefijo de tooltip ("[i]", "*", "->")
-       {white}border:: red:2{reset}           # color:brillo (soporta "rgb:2")
-       {white}title:: red:2{reset}
-       {white}focus:: yellow:2{reset}
+       {white}border:: neon_cyan:1{reset}     # color:brillo (soporta "rgb:2")
+       {white}title:: neon_yellow:2{reset}
+       {white}focus:: neon_red:2{reset}
        {white}options:: white:1{reset}
-       {white}banner:: red:2{reset}
+       {white}banner:: neon_magenta:2{reset}
        {white}subtitle:: cyan:1{reset}
-       {white}divider:: red:1{reset}
+       {white}divider:: blue:1{reset}
+     {cyan}>>{reset}
+
+     {cyan}<<submenu{reset}
+       {white}style:: 3{reset}                # Estilo de marco del submenu
+       {white}border:: neon_yellow:1{reset}   # Borde de las cajas laterales
+       {white}focus:: neon_cyan:2{reset}      # Opcion seleccionada en el submenu
+       {white}options:: white:1{reset}        # Opciones inactivas
+       {white}title:: neon_yellow:2{reset}    # Titulo de la caja del submenu
+       {white}arrow:: neon_cyan:2{reset}      # Color de la flecha indicadora ▶
+     {cyan}>>{reset}
+
+     {cyan}<<tabs{reset}
+       {white}active_tab:: neon_yellow:2{reset}# Color de la pestana seleccionada [ Tab ]
+       {white}tab_color:: gray:1{reset}        # Color de las pestanas inactivas
+       {white}indicator:: neon_cyan:2{reset}   # Color de los corchetes o separadores
+     {cyan}>>{reset}
+
+     {cyan}<<input{reset}
+       {white}style:: 3{reset}                # Estilo de marco del input
+       {white}border_color:: neon_cyan:1{reset}# Marco de la caja
+       {white}title_color:: neon_yellow:2{reset}# Titulo centrado en marco superior
+       {white}label_color:: white:2{reset}    # Etiqueta interior del campo
      {cyan}>>{reset}
 
      {cyan}<<table{reset}
-       {white}style:: 3{reset}                # Estilo de marco 1..20
-       {white}border_color:: red:2{reset}     # Color del borde exterior y separadores
-       {white}header_color:: yellow:2{reset}  # Color de los titulos de columna
-       {white}selected_row:: green:2{reset}  # Color de la fila con foco activo
-       {white}row_color:: white:1{reset}      # Color de filas regulares
-       {white}zebra_striping:: true{reset}    # Alternar brillo tenue en filas pares
-       {white}page_size:: 8{reset}            # Filas visibles antes de scroll
+       {white}style:: 3{reset}
+       {white}border_color:: red:2{reset}
+       {white}header_color:: yellow:2{reset}
+       {white}selected_row:: green:2{reset}
+       {white}row_color:: white:1{reset}
+       {white}zebra_striping:: true{reset}
+       {white}page_size:: 8{reset}
      {cyan}>>{reset}
 
      {cyan}<<card{reset}
-       {white}style:: 7{reset}                # Estilo de marco 1..20 (curvas)
+       {white}style:: 7{reset}
        {white}border_color:: cyan:2{reset}
        {white}title_color:: yellow:2{reset}
        {white}content_color:: white:1{reset}
@@ -289,13 +325,18 @@
        {white}unchecked_mark:: [ ]{reset}
      {cyan}>>{reset}
 
+  {cyan}3. Exportacion e Importacion:{reset}
+     - {bright_white}menu.style(<<-GR ... GR){reset} Inyeccion directa de CSS.
+     - {bright_white}menu.export_theme("tema.gr"){reset} Exporta el tema activo.
+     - {bright_white}$ ruby app.rb -theme -o mi_tema.gr{reset} Exportacion automatica por CLI.
+
 {bright_magenta}═════════════════════════════════════════════════════════════════════════════════════{reset}
 {bright_yellow}[8] MODULO DE COLORES: Color / C Y PERSONALIZACION HEXADECIMAL{reset}
 {bright_magenta}═════════════════════════════════════════════════════════════════════════════════════{reset}
   {cyan}1. Como Usar Colores Personalizados (Hexadecimal y Neon):{reset}
      El motor soporta de forma 100% nativa TrueColor (24 bits) en tres vias:
 
-     {white}A) En Codigo Normal con menu.set_style (Encadenamiento Fluido / Chaining):{reset}
+     {white}A) En Codigo Normal con menu.set_style:{reset}
         {bright_white}menu.set_style.border("#FF0055").title("#00F5FF").focus("gold"){reset}
         {bright_white}menu.set_style.banner("neon_emerald").subtitle("#A6E3A1"){reset}
 
@@ -304,18 +345,10 @@
           {white}border:: #FF0055:1{reset}
           {white}title:: #00F5FF:2{reset}
           {white}focus:: gold:2{reset}
-          {white}banner:: neon_cyan:2{reset}
         {bright_white}GR{reset}
 
-     {white}C) En Archivos de Tema .gr (ej. mis_colores.gr):{reset}
-        {white}border:: #FF0055{reset}           # Codigo hex 6 digitos
-        {white}title:: #0FF{reset}                # Codigo hex 3 digitos shorthand
-        {white}focus:: neon_gold:2{reset}         # Nombre neon con nivel de brillo
-        {white}options:: silver:1{reset}          # Nombre normal con nivel de brillo
-
-     {white}D) Directamente con el modulo Color / C:{reset}
+     {white}C) Directamente con el modulo Color / C:{reset}
         {bright_white}puts Color.hex("#FF0055", "Texto Carmesi Hex"){reset}
-        {bright_white}puts Color.gold("Texto Dorado Directo"){reset}
         {bright_white}puts Color.neon_emerald("Texto Esmeralda Neon"){reset}
 
   {cyan}2. Catalogo de 90+ Colores (Cada uno con version Normal y version Neon):{reset}
@@ -375,12 +408,20 @@
   {yellow}10{reset} -> ▒▒▒▒▒ (Sombreado medio)    {yellow}20{reset} -> ★☆☆☆★ (Estrellas)
 
 {bright_magenta}═════════════════════════════════════════════════════════════════════════════════════{reset}
-{bright_yellow}[11] NAVEGACION POR TECLADO Y ATAJOS{reset}
+{bright_yellow}[11] NAVEGACION POR TECLADO Y CONTROLES CON RATON{reset}
 {bright_magenta}═════════════════════════════════════════════════════════════════════════════════════{reset}
   * {bright_yellow}↑ (Arriba):{reset}      Mover foco arriba. En el tope salta al fondo (Snake loop).
   * {bright_yellow}↓ (Abajo):{reset}       Mover foco abajo. En el fondo salta al tope (Snake loop).
-  * {bright_yellow}← / →:{reset}          En grids 2D cambia de columna; en sliders ajusta valor.
+  * {bright_yellow}Tab / Shift+Tab:{reset} En menus con pestanas (tabs), cambia a la siguiente o anterior pestana.
+  * {bright_yellow}→ (Derecha):{reset}     En opciones con submenus (▶), despliega el submenu lateral (hasta 3 niveles).
+  * {bright_yellow}← / Esc:{reset}        En submenus laterales, cierra el nivel actual y regresa al nivel anterior.
   * {bright_yellow}Enter:{reset}          Ejecuta la opcion seleccionada o confirma modal/tabla.
+  * {bright_yellow}Raton (mouse: true):{reset}
+    - {cyan}Clic izquierdo:{reset}  Enfoca la opcion pulsada; si ya esta enfocada, ejecuta inmediatamente.
+    - {cyan}Clic en submenus:{reset}Abre o enfoca la caja del submenu correspondiente.
+    - {cyan}Clic en pestanas:{reset}Cambia inmediatamente a la pestana sobre la que se hizo clic.
+    - {cyan}Rueda de scroll:{reset} Desplaza el foco arriba o abajo (↑ / ↓) fluidamente en el panel activo.
+    - {cyan}Clic en ▲ / ▼:{reset}    Avanza o retrocede de pagina cuando hay paginacion.
   * {bright_yellow}s:{reset}              En tablas interactivas, ordena por la columna activa.
   * {bright_yellow}Espacio:{reset}        En casillas de verificacion (checkbox), marca/desmarca.
   * {bright_yellow}a / n / i:{reset}      En checkbox: (a) marcar todos, (n) ninguno, (i) invertir.
