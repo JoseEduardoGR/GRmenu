@@ -2771,8 +2771,7 @@ class GRmenu
       brightness_level = parts[1].to_i if parts[1] && !parts[1].empty?
     end
 
-    is_neon_color = color_name.start_with?("neon")
-    is_anim_active = is_neon_color || (@animate && ["diagonal", "linear", "fade", "rgb", "rainbow", "chroma", "neon"].include?(@animate.to_s.downcase))
+    is_anim_active = @animate && ["neon", "fade"].include?(@animate.to_s.downcase)
     is_chroma = color_name == "rgb" || color_name == "rainbow" || color_name == "chroma" || @animate.to_s.downcase == "rgb"
 
     if is_chroma
@@ -2822,53 +2821,13 @@ class GRmenu
                BASE_RGB[color_name] || [255, 255, 255]
              end
 
-      if @animate.to_s.downcase == "fade"
-        factor = (Math.sin(tick + phase_offset) + 1.0) / 2.0
-        f = 0.35 + 0.65 * factor
-        r = (base[0] * f).clamp(0, 255).to_i
-        g = (base[1] * f).clamp(0, 255).to_i
-        b = (base[2] * f).clamp(0, 255).to_i
-        glow = (factor > 0.85) ? ";1" : ""
-        return "\e[38;2;#{r};#{g};#{b}#{glow}m#{text}#{self.class.ansi_reset}"
-      else
-        out = String.new("")
-        char_count = 0
-        in_escape = false
-        escape_buf = String.new("")
-
-        text.to_s.each_char do |ch|
-          if ch == "\e"
-            in_escape = true
-            escape_buf << ch
-            next
-          end
-          if in_escape
-            escape_buf << ch
-            if ch =~ /[a-zA-Z]/
-              in_escape = false
-              out << escape_buf
-              escape_buf.clear
-            end
-            next
-          end
-
-          if ch == " " || ch == "\t" || ch == "\r" || ch == "\n"
-            out << ch
-          else
-            phase = char_count * 0.22 + phase_offset
-            factor = (Math.sin(tick + phase) + 1.0) / 2.0
-            f = 0.35 + 0.65 * factor
-            r = (base[0] * f).clamp(0, 255).to_i
-            g = (base[1] * f).clamp(0, 255).to_i
-            b = (base[2] * f).clamp(0, 255).to_i
-            glow = (factor > 0.85) ? ";1" : ""
-            out << "\e[38;2;#{r};#{g};#{b}#{glow}m#{ch}"
-            char_count += 1
-          end
-        end
-        out << self.class.ansi_reset
-        return out
-      end
+      factor = (Math.sin(tick + phase_offset) + 1.0) / 2.0
+      f = 0.35 + 0.65 * factor
+      r = (base[0] * f).clamp(0, 255).to_i
+      g = (base[1] * f).clamp(0, 255).to_i
+      b = (base[2] * f).clamp(0, 255).to_i
+      glow = (factor > 0.85) ? ";1" : ""
+      return "\e[38;2;#{r};#{g};#{b}#{glow}m#{text}#{self.class.ansi_reset}"
     end
 
     color_code = self.class.ansi_color(color_name, brightness_level)
@@ -3091,7 +3050,8 @@ class GRmenu
     if @banner && !@banner.empty?
       banner_lines, banner_box_w = render_banner_lines(term_cols)
       unless banner_lines.empty?
-        rendered_lines.concat(banner_lines)
+        b_pad = (@center && term_cols > banner_box_w) ? " " * ((term_cols - banner_box_w) / 2) : ""
+        rendered_lines.concat(banner_lines.map { |l| "#{b_pad}#{l}" })
         rendered_lines << ""
         header_lines_count += banner_lines.length + 1
         header_box_width = [header_box_width, banner_box_w].max
@@ -3113,28 +3073,63 @@ class GRmenu
     calculated_width = ([calculated_width, GRmenu.display_width(@query) + 16].max) if @search
     total_width = [calculated_width, term_cols - 2].min
 
-    reference_width = header_box_width > 0 ? header_box_width : total_width
-    margin_left = (@center && reference_width > total_width) ? " " * ((reference_width - total_width) / 2) : ""
+    sub_1_preview_w = 0
+    sub_2_preview_w = 0
+    if @open_level >= 1 && is_submenu_item?(@functions[@index])
+      s1_acts = get_submenu_actions(@functions[@index])
+      if s1_acts && !s1_acts.empty?
+        s1_names = s1_acts.map { |a| extract_name_from_action(a) }
+        s1_max = s1_names.empty? ? 10 : s1_names.map { |n| GRmenu.display_width(n) }.max
+        s1_title = all_names[@index] || ""
+        sub_1_preview_w = [s1_max + 8, GRmenu.display_width(s1_title) + 6, 20].max
+        sub_1_preview_w = [sub_1_preview_w, 36].min
+
+        if @open_level >= 2 && is_submenu_item?(s1_acts[@sub_index_1])
+          s2_acts = get_submenu_actions(s1_acts[@sub_index_1])
+          if s2_acts && !s2_acts.empty?
+            s2_names = s2_acts.map { |a| extract_name_from_action(a) }
+            s2_max = s2_names.empty? ? 10 : s2_names.map { |n| GRmenu.display_width(n) }.max
+            s2_title = extract_name_from_action(s1_acts[@sub_index_1]) || ""
+            sub_2_preview_w = [s2_max + 8, GRmenu.display_width(s2_title) + 6, 20].max
+            sub_2_preview_w = [sub_2_preview_w, 36].min
+          end
+        end
+      end
+    end
+
+    total_chain_w = total_width
+    total_chain_w += 2 + sub_1_preview_w if sub_1_preview_w > 0
+    total_chain_w += 2 + sub_2_preview_w if sub_2_preview_w > 0
+
+    margin_left = if @center && term_cols > total_chain_w
+                    " " * ((term_cols - total_chain_w) / 2)
+                  elsif @center && term_cols > total_width
+                    " " * ((term_cols - total_width) / 2)
+                  else
+                    ""
+                  end
 
     subtitle_lines_count = 0
     if @subtitle && !@subtitle.empty?
       subtitle_lines = @subtitle.lines.map(&:chomp)
-      div_w = @divider.is_a?(Numeric) ? @divider.to_i : [reference_width, term_cols - 2].min
+      ref_sub_w = header_box_width > 0 ? header_box_width : total_chain_w
+      div_w = @divider.is_a?(Numeric) ? @divider.to_i : [ref_sub_w, term_cols - 2].min
+      sub_pad = (@center && term_cols > div_w) ? " " * ((term_cols - div_w) / 2) : ""
 
       if @divider
-        rendered_lines << colorize("─" * div_w, @style_config.divider, 0.0)
+        rendered_lines << "#{sub_pad}#{colorize("─" * div_w, @style_config.divider, 0.0)}"
         subtitle_lines_count += 1
       end
 
       subtitle_lines.each_with_index do |sub_line, s_i|
         pad_sub = [div_w - GRmenu.display_width(sub_line), 0].max
         formatted_sub = @center ? (" " * (pad_sub / 2) + sub_line + " " * (pad_sub - (pad_sub / 2))) : sub_line
-        rendered_lines << colorize(formatted_sub, @style_config.subtitle, s_i * 0.3)
+        rendered_lines << "#{sub_pad}#{colorize(formatted_sub, @style_config.subtitle, s_i * 0.3)}"
         subtitle_lines_count += 1
       end
 
       if @divider
-        rendered_lines << colorize("─" * div_w, @style_config.divider, 0.6)
+        rendered_lines << "#{sub_pad}#{colorize("─" * div_w, @style_config.divider, 0.6)}"
         subtitle_lines_count += 1
       end
       rendered_lines << ""
@@ -3227,6 +3222,7 @@ class GRmenu
       v_left  = colorize(v_l_raw, border_color_cfg, 0.2)
       v_right = colorize(v_r_raw, border_color_cfg, 0.8)
 
+      main_box_start = rendered_lines.length
       top_border_line = box_border[:tl] + top_fill + box_border[:tr]
       rendered_lines << "#{margin_left}#{colorize(top_border_line, border_color_cfg, 0.0)}"
 
@@ -3449,9 +3445,9 @@ class GRmenu
         if sub_2_lines
           total_3_w = margin_left.length + total_width + 2 + sub_1_w + 2 + sub_2_w
           if total_3_w <= term_cols
-            sub_1_start = [[parent_row_idx - 1, 0].max, [rendered_lines.length - sub_1_lines.length, 0].max].min
+            sub_1_start = main_box_start
             p1_abs_row = sub_1_start + (p_row_1 || 1)
-            sub_2_start = [[p1_abs_row - 1, 0].max, [rendered_lines.length - sub_2_lines.length, 0].max].min
+            sub_2_start = main_box_start
             max_3_lines = [rendered_lines.length, sub_1_start + sub_1_lines.length, sub_2_start + sub_2_lines.length].max
 
             x1_start = margin_left.length + total_width + 2
@@ -3498,7 +3494,7 @@ class GRmenu
             rendered_lines = stitched_lines
           elsif (sub_1_w + 2 + sub_2_w) <= term_cols
             p1_abs_row = (p_row_1 || 1)
-            sub_2_start = [[p1_abs_row - 1, 0].max, [sub_1_lines.length - sub_2_lines.length, 0].max].min
+            sub_2_start = main_box_start
             max_2_lines = [sub_1_lines.length, sub_2_start + sub_2_lines.length].max
 
             x1_start = margin_left.length
@@ -3538,7 +3534,7 @@ class GRmenu
         else
           total_2_w = margin_left.length + total_width + 2 + sub_1_w
           if total_2_w <= term_cols
-            sub_start_line = [[parent_row_idx - 1, 0].max, [rendered_lines.length - sub_1_lines.length, 0].max].min
+            sub_start_line = main_box_start
             max_total_lines = [rendered_lines.length, sub_start_line + sub_1_lines.length].max
 
             x1_start = margin_left.length + total_width + 2
