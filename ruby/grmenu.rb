@@ -24,6 +24,30 @@ class GRmenu
     nil
   end
 
+  def self.enable_windows_vt
+    return unless Gem.win_platform? || RUBY_PLATFORM =~ /mswin|mingw|cygwin/
+    require 'fiddle'
+    kernel32 = Fiddle.dlopen('kernel32')
+    get_std_handle = Fiddle::Function.new(kernel32['GetStdHandle'], [Fiddle::TYPE_INT], Fiddle::TYPE_VOIDP)
+    get_console_mode = Fiddle::Function.new(kernel32['GetConsoleMode'], [Fiddle::TYPE_VOIDP, Fiddle::TYPE_VOIDP], Fiddle::TYPE_INT)
+    set_console_mode = Fiddle::Function.new(kernel32['SetConsoleMode'], [Fiddle::TYPE_VOIDP, Fiddle::TYPE_INT], Fiddle::TYPE_INT)
+
+    h_out = get_std_handle.call(-11)
+    out_mode = ' ' * 4
+    if get_console_mode.call(h_out, out_mode) != 0
+      m = out_mode.unpack1('L')
+      set_console_mode.call(h_out, m | 0x0004)
+    end
+
+    h_in = get_std_handle.call(-10)
+    in_mode = ' ' * 4
+    if get_console_mode.call(h_in, in_mode) != 0
+      m = in_mode.unpack1('L')
+      set_console_mode.call(h_in, m | 0x0200)
+    end
+  rescue StandardError
+  end
+
   def self.load_json_data(filename)
     path = find_data_file(filename)
     return {} unless path && File.exist?(path)
@@ -3750,11 +3774,15 @@ class GRmenu
     target_width = min_width || size_max || 20
     action_to_execute = nil
 
+    self.class.enable_windows_vt
+    $stdout.sync = true
+
     is_tty = $stdin.respond_to?(:tty?) && $stdin.tty?
 
     begin
       Kernel.print("#{HIDE_CURSOR}#{CLEAR_SCREEN_SEQUENCE}")
       Kernel.print(ENABLE_MOUSE) if @mouse
+      $stdout.flush
 
       if @animate && !["false", "rgb", "", "nil"].include?(@animate.downcase)
         intro_lines = render_lines(target_width)
@@ -3771,17 +3799,21 @@ class GRmenu
     ensure
       Kernel.print(DISABLE_MOUSE) if @mouse
       Kernel.print(SHOW_CURSOR)
+      $stdout.flush
     end
 
     if action_to_execute
       Kernel.print(CLEAR_SCREEN_SEQUENCE)
+      $stdout.flush
       execute_action(action_to_execute)
     else
       Kernel.print(CLEAR_SCREEN_SEQUENCE)
+      $stdout.flush
     end
   rescue Interrupt
     Kernel.print(DISABLE_MOUSE) if @mouse
     Kernel.print("#{SHOW_CURSOR}#{CLEAR_SCREEN_SEQUENCE}")
+    $stdout.flush
     nil
   end
 
@@ -3796,6 +3828,7 @@ class GRmenu
     end
     buffer << CLEAR_TO_EOS
     Kernel.print(buffer)
+    $stdout.flush
   end
 
   def run_interactive_loop(input_stream, target_width)
@@ -3837,34 +3870,40 @@ class GRmenu
         act = $4
 
         if btn == 64
-          if @level == 2 && @open_level >= 2 && is_submenu_item?(@functions[@index])
+          if @open_level >= 2 && @sub_2_col_rng && @sub_2_col_rng.cover?(col) && is_submenu_item?(@functions[@index])
             s1_acts = get_submenu_actions(@functions[@index])
             s2_acts = get_submenu_actions(s1_acts[@sub_index_1]) if s1_acts
             @sub_index_2 = (@sub_index_2 - 1) % s2_acts.length if s2_acts && !s2_acts.empty?
-          elsif @level == 1 && @open_level >= 1 && is_submenu_item?(@functions[@index])
+            @level = 2
+          elsif @open_level >= 1 && @sub_1_col_rng && @sub_1_col_rng.cover?(col) && is_submenu_item?(@functions[@index])
             s1_acts = get_submenu_actions(@functions[@index])
             @sub_index_1 = (@sub_index_1 - 1) % s1_acts.length if s1_acts && !s1_acts.empty?
             @sub_index_2 = 0
+            @level = 1
           else
             move_up
             @sub_index_1 = 0
             @sub_index_2 = 0
+            @level = 0
           end
           draw_frame(target_width)
           next
         elsif btn == 65
-          if @level == 2 && @open_level >= 2 && is_submenu_item?(@functions[@index])
+          if @open_level >= 2 && @sub_2_col_rng && @sub_2_col_rng.cover?(col) && is_submenu_item?(@functions[@index])
             s1_acts = get_submenu_actions(@functions[@index])
             s2_acts = get_submenu_actions(s1_acts[@sub_index_1]) if s1_acts
             @sub_index_2 = (@sub_index_2 + 1) % s2_acts.length if s2_acts && !s2_acts.empty?
-          elsif @level == 1 && @open_level >= 1 && is_submenu_item?(@functions[@index])
+            @level = 2
+          elsif @open_level >= 1 && @sub_1_col_rng && @sub_1_col_rng.cover?(col) && is_submenu_item?(@functions[@index])
             s1_acts = get_submenu_actions(@functions[@index])
             @sub_index_1 = (@sub_index_1 + 1) % s1_acts.length if s1_acts && !s1_acts.empty?
             @sub_index_2 = 0
+            @level = 1
           else
             move_down
             @sub_index_1 = 0
             @sub_index_2 = 0
+            @level = 0
           end
           draw_frame(target_width)
           next
@@ -3903,14 +3942,9 @@ class GRmenu
             s1_acts = get_submenu_actions(@functions[@index])
             s2_acts = get_submenu_actions(s1_acts[@sub_index_1]) if s1_acts
             if s2_acts && s2_clicked < s2_acts.length
-              if @level == 2 && @sub_index_2 == s2_clicked
-                return s2_acts[s2_clicked]
-              else
-                @level = 2
-                @sub_index_2 = s2_clicked
-                draw_frame(target_width)
-                next
-              end
+              @level = 2
+              @sub_index_2 = s2_clicked
+              return s2_acts[s2_clicked]
             end
           end
 
@@ -3919,67 +3953,39 @@ class GRmenu
             s1_acts = get_submenu_actions(@functions[@index])
             if s1_acts && s1_clicked < s1_acts.length
               t_act = s1_acts[s1_clicked]
-              if @level == 1 && @sub_index_1 == s1_clicked
-                if is_submenu_item?(t_act)
-                  @open_level = 2
-                  @level = 2
-                  @sub_index_2 = 0
-                  draw_frame(target_width)
-                  next
-                else
-                  return t_act
-                end
-              else
-                @level = 1
-                @sub_index_1 = s1_clicked
-                if is_submenu_item?(t_act)
-                  @open_level = 2
-                  @sub_index_2 = 0
-                else
-                  @open_level = 1
-                end
+              @level = 1
+              @sub_index_1 = s1_clicked
+              if is_submenu_item?(t_act)
+                @open_level = 2
+                @level = 2
+                @sub_index_2 = 0
                 draw_frame(target_width)
                 next
+              else
+                return t_act
               end
             end
           end
 
           if @row_hit_map && @row_hit_map[row]
             hit = @row_hit_map[row]
-            inner_x = col - hit[:margin_left] - 3
-            if inner_x >= 0
-              c_idx = (inner_x / (hit[:col_w] + 2)).to_i
-              c_idx = [[c_idx, 0].max, hit[:cols] - 1].min
+            x_in_box = col - hit[:margin_left]
+            if x_in_box > 0 && (hit[:total_w].nil? || x_in_box <= hit[:total_w])
+              c_idx = [[((x_in_box - 2) / ([hit[:col_w], 1].max + 2)).to_i, 0].max, hit[:cols] - 1].min
               clicked_item = hit[:row_indices][c_idx]
               if clicked_item
-                if @index == clicked_item
-                  if is_submenu_item?(@functions[clicked_item])
-                    @open_level = 1
-                    @level = 1
-                    @sub_index_1 = 0
-                    @sub_index_2 = 0
-                    @active_panel = :sub
-                    @submenu_open = true
-                    draw_frame(target_width)
-                    next
-                  else
-                    return @functions[clicked_item]
-                  end
-                else
-                  @index = clicked_item
-                  @level = 0
-                  @active_panel = :main
-                  if is_submenu_item?(@functions[clicked_item])
-                    @open_level = 1
-                    @sub_index_1 = 0
-                    @sub_index_2 = 0
-                    @submenu_open = true
-                  else
-                    @open_level = 0
-                    @submenu_open = false
-                  end
+                @index = clicked_item
+                if is_submenu_item?(@functions[clicked_item])
+                  @open_level = 1
+                  @level = 1
+                  @sub_index_1 = 0
+                  @sub_index_2 = 0
+                  @active_panel = :sub
+                  @submenu_open = true
                   draw_frame(target_width)
                   next
+                else
+                  return @functions[clicked_item]
                 end
               end
             end
