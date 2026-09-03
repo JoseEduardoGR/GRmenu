@@ -100,7 +100,7 @@ pip install grmenu
 ### Ruby
 
 ```ruby
-require 'GRmenu'
+require 'grmenu'
 
 def iniciar_servidor
   puts Color.bright_green("-> Servidor iniciado en puerto 3000...")
@@ -445,21 +445,33 @@ ruby ruby/e.rb
 
 ## Ejemplo Completo en Python
 
+![Demo de GRmenu en Python](python/assets/demo.gif)
+
 ```python
 from GRmenu import GRmenu
 
-def ver_tabla():
-    print("Mostrando tabla...")
+def saludar():
+    print("¡Hola desde Python!")
 
-def salir():
-    print("Adios!")
+def acerca_de():
+    print("GRmenu — Menús interactivos para terminal")
+
+def salir_app():
+    print("Saliendo...")
+    exit(0)
 
 menu = GRmenu(
-    [ver_tabla, salir],
-    title="Panel Python",
-    style=3
+    [
+        saludar,
+        acerca_de,
+        salir_app
+    ],
+    title="GRmenu Demo (Python)",
+    style=7
 )
-menu.SetStyle.Border("cyan")
+
+menu.SetStyle.Border("magenta")
+menu.SetStyle.Options("white")
 menu.SetStyle.Focus("yellow", 2)
 menu.draw()
 ```
@@ -541,6 +553,37 @@ menu.draw()
 | `GRmenu.spinner` | `(mensaje, ... &bloque)` | Ejecuta bloque con spinner animado. |
 | `GRmenu.banner` | `(texto, delay = 0, ...)` | Imprime texto en arte ASCII 3D. |
 | `GRmenu.help` | `()` | Muestra guia completa de documentacion en consola. |
+
+---
+
+### Python
+
+#### `GRmenu(functions, title="", style=19)`
+
+| Parametro | Tipo | Descripcion |
+|:----------|:-----|:------------|
+| `functions` | `list[Callable]` | Funciones a mostrar como opciones, en orden. |
+| `title` | `str` | Titulo mostrado en la cabecera del menu. |
+| `style` | `int` | Numero de estilo de borde (1 al 20). |
+
+#### `menu.SetStyle`
+
+| Metodo | Descripcion |
+|:-------|:------------|
+| `SetStyle.Border(color, level=1)` | Color del marco del menu. |
+| `SetStyle.Options(color, level=1)`| Color de las opciones sin seleccionar. |
+| `SetStyle.Focus(color, level=2)` | Color de la opcion resaltada. |
+
+#### `menu.draw(size_max=20)`
+
+Dibuja el menu interactivo y ejecuta la funcion seleccionada al pulsar `Enter`.
+
+---
+
+## Contribuir
+
+Las contribuciones son bienvenidas. Puedes abrir un [issue](https://github.com/JoseEduardoGR/GRmenu/issues) o enviar un pull request en:  
+👉 **[https://github.com/JoseEduardoGR/GRmenu](https://github.com/JoseEduardoGR/GRmenu)**
 
 ---
 
