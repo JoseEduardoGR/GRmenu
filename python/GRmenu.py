@@ -252,6 +252,15 @@ class GRmenu():
         self._chain = [self]
         self._focus = 0
         self._clear_seq = "\x1b[H\x1b[2J\x1b[3J"
+        # Firma de la ultima estructura dibujada (profundidad de self._chain
+        # + si se esta en modo preview de codigo fuente): cuando cambia de
+        # un frame al siguiente (entrar/salir de un submenu, entrar/salir
+        # de preview, o el primer frame despues de welcome) el layout de
+        # paneles cambia de ancho/alto, y un simple "pisar encima" puede
+        # dejar restos del frame anterior a la derecha o abajo. Por eso en
+        # esos casos puntuales `_draw_loop` hace un clear completo en vez
+        # del home+overwrite de siempre (ver su uso mas abajo).
+        self._last_shape = None
         self._image_shown = False
         self.banner = banner
         self.subtitle = subtitle
@@ -1519,6 +1528,63 @@ class GRmenu():
         lines.append(self._colorize("'t' para volver al menu".rjust(width), self.SetStyle.description))
         return width, lines, [None] * len(lines)
 
+    def _print_banner_subtitle(self, cols, content_w) -> tuple:
+        """Imprime el banner y el subtitulo (si estan configurados) al
+        principio de un frame. Devuelve `(printed_rows, ref)`:
+        `printed_rows` es cuantas filas de terminal se imprimieron (lo
+        necesita quien llama para saber en que fila ABSOLUTA arranca lo
+        que dibuje despues, por ejemplo para el hit-test de click), y
+        `ref` es el ancho de referencia para centrar ese contenido de
+        despues -- el ancho del banner si hay uno, si no `content_w`
+        (el ancho de lo que va a dibujar quien llama, para poder
+        centrarlo contra el subtitulo aunque no haya banner).
+
+        Factorizado de `_draw_loop` (antes vivia inline ahi) para que
+        `GRtable` -- una grilla en vez de paneles de opciones -- pueda
+        reusar el mismo banner/subtitulo sin duplicar esta logica."""
+        printed_rows = 0
+        banner_w = 0
+        if self.banner:
+            bb = self.BORDERS().get(str(self.banner_style), self.BORDERS()["3"])
+            rows = self.build_ascii_lines(self.banner, cols, self.SetStyle.font)
+            if rows:
+                banner_w = max(len(r) for r in rows) + 6
+                bline = self._hline(bb["h"], banner_w - 2)
+                print(self._colorize_anim(bb["tl"] + bline + bb["tr"], self.SetStyle.banner, row=0))
+                for b_row, r in enumerate(rows, start=1):
+                    print(self._colorize_anim(f"{bb['v']}  {r}  {bb['v']}", self.SetStyle.banner, row=b_row))
+                print(self._colorize_anim(bb["bl"] + bline + bb["br"], self.SetStyle.banner, row=len(rows) + 1))
+                printed_rows += len(rows) + 2
+            else:
+                btext = self.banner.strip()
+                banner_w = min(len(btext) + 6, cols - 2)
+                bline = self._hline(bb["h"], banner_w - 2)
+                print(self._colorize_anim(bb["tl"] + bline + bb["tr"], self.SetStyle.banner, row=0))
+                print(self._colorize_anim(f"{bb['v']} {btext.center(banner_w - 4)} {bb['v']}", self.SetStyle.banner, row=1))
+                print(self._colorize_anim(bb["bl"] + bline + bb["br"], self.SetStyle.banner, row=2))
+                printed_rows += 3
+            print()
+            printed_rows += 1
+
+        ref = banner_w or content_w
+
+        if self.subtitle:
+            div_w = min(ref, cols - 2)
+            if self.divider:
+                print(self._colorize("─" * div_w, self.SetStyle.divider))
+                printed_rows += 1
+            sub_lines = self.subtitle.splitlines()
+            for sub_line in sub_lines:
+                print(self._colorize(sub_line.center(div_w) if self.center else sub_line, self.SetStyle.subtitle))
+            printed_rows += len(sub_lines)
+            if self.divider:
+                print(self._colorize("─" * div_w, self.SetStyle.divider))
+                printed_rows += 1
+            print()
+            printed_rows += 1
+
+        return printed_rows, ref
+
     def _draw_loop(self, size_max):
         # tty.setraw() apaga ISIG, asi que Ctrl+C no llega como SIGINT sino
         # como el byte \x03 leido normalmente: hay que salir a mano igual
@@ -1586,21 +1652,6 @@ class GRmenu():
                 if GRmenu._image_protocol() == "kitty":
                     self._delete_shown_images()
                 self._image_shown = False
-            # Solo "vuelve el cursor al origen" (\x1b[H), SIN borrar la
-            # pantalla antes de redibujar: un clear completo (`_clear_seq`,
-            # con 2J) deja la terminal en negro durante el instante entre
-            # el borrado y el siguiente print, lo que se ve como parpadeo
-            # (mucho mas notorio con `animate`, que redibuja ~28 veces por
-            # segundo aunque no se toque ninguna tecla). Al no borrar,
-            # cada frame nuevo pisa encima del anterior caracter a
-            # caracter; lo que pueda quedar de mas abajo (por ejemplo si
-            # el frame anterior era mas alto, con un submenu abierto que
-            # se acaba de cerrar) se limpia DESPUES de terminar de
-            # imprimir el frame nuevo completo, con `\x1b[J` (borra desde
-            # el cursor hacia abajo), asi nunca se ve un hueco en blanco
-            # encima de contenido que ya esta dibujado.
-            sys.stdout.write("\x1b[H")
-
             if searching:
                 # En modo busqueda cualquier tecla imprimible (incluidas
                 # "t"/"q") se toma como texto, no como su funcion normal.
@@ -1656,6 +1707,30 @@ class GRmenu():
                     self._focus -= 1                # izquierda: vuelve un nivel
                     del self._chain[self._focus + 1:]
 
+            # Firma de la forma que va a tener ESTE frame, ya con
+            # self._chain/self._preview actualizados por la tecla de
+            # arriba (entrar/salir de un submenu, entrar/salir de
+            # preview). Si cambio respecto al frame anterior (incluido el
+            # primerisimo frame, arrancando en None, justo despues de
+            # welcome), el layout de paneles cambia de ancho/alto y un
+            # simple "pisar encima" (home + overwrite, ver mas abajo)
+            # puede dejar restos del frame anterior a la derecha o abajo
+            # de lo nuevo -- ahi conviene un clear completo. Frame a
+            # frame DENTRO de la misma forma (mover la seleccion, tick de
+            # `animate`) se sigue pisando sin clear, que es lo que evita
+            # el parpadeo constante.
+            last_node = self._chain[-1]
+            has_lookahead = (
+                not self._preview and len(self._chain) < GRSubMenu.MAX_DEPTH
+                and isinstance(last_node.functions[last_node.index], GRSubMenu)
+            )
+            shape = (len(self._chain), self._preview, has_lookahead)
+            if shape != self._last_shape:
+                print(self._clear_seq, end="")
+            else:
+                sys.stdout.write("\x1b[H")
+            self._last_shape = shape
+
             cols = GRmenu._term_width()
 
             # Un panel por cada nivel ya "entrado" (self._chain), mas un
@@ -1695,50 +1770,12 @@ class GRmenu():
             # agrega a la derecha, sin empujar nada mas.
             chain_w = sum(w for node_p, w, _, _ in panels if node_p in self._chain) + 2 * (len(self._chain) - 1)
 
-            # Cuenta las filas que van imprimiendo banner/subtitulo, para
-            # saber en que fila ABSOLUTA de la terminal arrancan los
+            # printed_rows: cuantas filas de terminal ocuparon banner y
+            # subtitulo, para saber en que fila ABSOLUTA arrancan los
             # paneles (lo necesita el hit-test de click, mas abajo).
-            printed_rows = 0
-
-            banner_w = 0
-            if self.banner:
-                bb = self.BORDERS().get(str(self.banner_style), self.BORDERS()["3"])
-                rows = self.build_ascii_lines(self.banner, cols, self.SetStyle.font)
-                if rows:
-                    banner_w = max(len(r) for r in rows) + 6
-                    bline = self._hline(bb["h"], banner_w - 2)
-                    print(self._colorize_anim(bb["tl"] + bline + bb["tr"], self.SetStyle.banner, row=0))
-                    for b_row, r in enumerate(rows, start=1):
-                        print(self._colorize_anim(f"{bb['v']}  {r}  {bb['v']}", self.SetStyle.banner, row=b_row))
-                    print(self._colorize_anim(bb["bl"] + bline + bb["br"], self.SetStyle.banner, row=len(rows) + 1))
-                    printed_rows += len(rows) + 2
-                else:
-                    btext = self.banner.strip()
-                    banner_w = min(len(btext) + 6, cols - 2)
-                    bline = self._hline(bb["h"], banner_w - 2)
-                    print(self._colorize_anim(bb["tl"] + bline + bb["tr"], self.SetStyle.banner, row=0))
-                    print(self._colorize_anim(f"{bb['v']} {btext.center(banner_w - 4)} {bb['v']}", self.SetStyle.banner, row=1))
-                    print(self._colorize_anim(bb["bl"] + bline + bb["br"], self.SetStyle.banner, row=2))
-                    printed_rows += 3
-                print()
-                printed_rows += 1
-
-            ref = banner_w or chain_w
-
-            if self.subtitle:
-                div_w = min(ref, cols - 2)
-                if self.divider:
-                    print(self._colorize("─" * div_w, self.SetStyle.divider))
-                    printed_rows += 1
-                sub_lines = self.subtitle.splitlines()
-                for sub_line in sub_lines:
-                    print(self._colorize(sub_line.center(div_w) if self.center else sub_line, self.SetStyle.subtitle))
-                printed_rows += len(sub_lines)
-                if self.divider:
-                    print(self._colorize("─" * div_w, self.SetStyle.divider))
-                    printed_rows += 1
-                print()
-                printed_rows += 1
+            # ref: ancho de referencia para centrar ese contenido (ver
+            # `_print_banner_subtitle`).
+            printed_rows, ref = self._print_banner_subtitle(cols, chain_w)
 
             outer_pad = " " * ((ref - chain_w) // 2) if self.center and ref > chain_w else ""
             height = max(len(lines) for _, _, lines, _ in panels)
@@ -2024,6 +2061,658 @@ class GRmenu():
         else:
             GRmenu._print_header("GRMENU", "Ayuda de linea de comandos")
             parser.print_help()
+
+
+class GRDataTable(GRmenu):
+    """Menu estilo tabla: cada opcion se dibuja como una fila con varias
+    columnas alineadas (con encabezado), en vez de un solo nombre.
+
+    Hereda TODA la logica de `GRmenu` (navegacion con flechas, entrar y
+    salir de submenus, busqueda con "/", marcado con espacio, preview de
+    codigo fuente con "t", animacion, mouse, etc.) sin tocar nada de
+    eso: lo unico que cambia es como se dibuja cada fila, en
+    `_render_option_panel` (ver mas abajo), asi que cualquier parametro
+    de `GRmenu.__init__` (title, banner, subtitle, style, animate,
+    searchable, max_show_options...) funciona exactamente igual aca.
+
+    Las opciones (`functions`) usan el mismo formato de tupla de
+    siempre, pero con una lista/tupla de celdas en lugar de un nombre
+    unico:
+
+        (celdas, funcion)
+        (celdas, funcion, descripcion)
+
+    `celdas` debe traer un valor por columna (se convierte con `str()`
+    para mostrarlo); si trae menos que `columns`, las que faltan se
+    completan vacias, y si trae de mas, las de sobra se ignoran. Una
+    fila que NO sigue ese formato -- por ejemplo un `GRSubMenu` comun
+    metido entre las filas de la tabla, o una tupla `(nombre, funcion)`
+    de toda la vida -- se dibuja como una fila normal de GRmenu, con su
+    nombre ocupando el ancho completo de la tabla (para anidar OTRA
+    tabla en vez de un submenu comun, ver `GRDataTable.SubTable`).
+
+    Ejemplo:
+
+        tabla = GRDataTable(
+            [
+                ([" 1", "Ana", "29"], ver_ana),
+                ([" 2", "Luz", "34"], ver_luz, "Ficha completa de Luz"),
+            ],
+            columns=["#", "Nombre", "Edad"],
+            col_align=["r", "l", "r"],
+            title="Usuarios",
+        )
+        tabla.draw()
+    """
+
+    def __init__(self, functions, columns, col_align=None, **kwargs):
+        """
+        Args:
+            functions: Igual que en `GRmenu`, pero cada opcion es
+                `(celdas, funcion)` o `(celdas, funcion, descripcion)`
+                (ver la clase). Tambien acepta un `GRSubMenu` (comun o
+                creado con `GRDataTable.SubTable`) mezclado entre las filas.
+            columns: Lista con el nombre de cada columna (se dibuja
+                como encabezado de la tabla). Su cantidad define cuantas
+                celdas se esperan por fila.
+            col_align: Alineacion por columna, misma cantidad que
+                `columns`: "l" (izquierda, por defecto), "r" (derecha,
+                comoda para numeros) o "c" (centrado). `None` (por
+                defecto) alinea todas las columnas a la izquierda.
+            **kwargs: Resto de los argumentos de `GRmenu.__init__`
+                (title, style, banner, subtitle, font, divider, center,
+                max_show_options, searchable, animate...).
+        """
+        if col_align is not None and len(col_align) != len(columns):
+            raise ValueError("col_align debe tener la misma cantidad de elementos que columns")
+        super().__init__(functions, **kwargs)
+        self.columns = list(columns)
+        self.col_align = list(col_align) if col_align else ["l"] * len(columns)
+
+    @staticmethod
+    def SubTable(functions, name, columns, col_align=None, style=None, max_show_options=10, searchable=False):
+        """Crea un `GRSubMenu` con su propia tabla (columnas propias),
+        para anidar una tabla DENTRO de otra en vez de un `GRSubMenu`
+        comun de una sola columna. Se usa igual que un `GRSubMenu`
+        normal: se pasa directo (sin tupla) en la lista `functions` de
+        la tabla/submenu que lo contiene.
+
+        Args:
+            functions, name, style, max_show_options, searchable: Igual
+                que en `GRSubMenu.__init__`.
+            columns, col_align: Igual que en `GRDataTable.__init__`.
+        """
+        if col_align is not None and len(col_align) != len(columns):
+            raise ValueError("col_align debe tener la misma cantidad de elementos que columns")
+        sub = GRSubMenu(functions, name, style=style, max_show_options=max_show_options, searchable=searchable)
+        sub.columns = list(columns)
+        sub.col_align = list(col_align) if col_align else ["l"] * len(columns)
+        return sub
+
+    @staticmethod
+    def _name(f) -> str:
+        """Como `GRmenu._name`, pero una fila-tabla (`celdas` en `f[0]`
+        como lista/tupla) se muestra como sus celdas unidas con " | "
+        -- la usan, por ejemplo, el preview de codigo fuente ("Preview:
+        {nombre}") y la busqueda (ver `_filtered_indices`)."""
+        if isinstance(f, (list, tuple)) and f and isinstance(f[0], (list, tuple)):
+            return " | ".join(str(c) for c in f[0])
+        return GRmenu._name(f)
+
+    @staticmethod
+    def _filtered_indices(node):
+        """Como `GRmenu._filtered_indices`, pero filtra contra
+        `GRDataTable._name` (celdas unidas) en vez de `GRmenu._name`, para
+        que buscar coincida con el contenido de CUALQUIER columna, no
+        solo con un nombre."""
+        if not getattr(node, "search_active", False):
+            return list(range(len(node.functions)))
+        query = getattr(node, "search_query", "").strip().lower()
+        if not query:
+            return list(range(len(node.functions)))
+        return [i for i, f in enumerate(node.functions) if query in GRDataTable._name(f).lower()]
+
+    def _render_option_panel(self, node, size_max, style, focused):
+        """Como `GRmenu._render_option_panel`, pero si `node` tiene un
+        atributo `columns` (lo tiene siempre `self`; un `GRSubMenu`
+        colgado de la tabla lo tiene solo si se creo con
+        `GRDataTable.SubTable`) dibuja sus filas como tabla: encabezado con
+        los nombres de columna, una linea divisoria, y cada opcion con
+        sus celdas alineadas. Un `node` sin `columns` (un `GRSubMenu`
+        comun) cae directo en el `_render_option_panel` de `GRmenu`, sin
+        cambios."""
+        columns = getattr(node, "columns", None)
+        if not columns:
+            return super()._render_option_panel(node, size_max, style, focused)
+
+        align = getattr(node, "col_align", None) or ["l"] * len(columns)
+
+        def pad(text, w, a):
+            if a == "r":
+                return text.rjust(w)
+            if a == "c":
+                return text.center(w)
+            return text.ljust(w)
+
+        # Celdas por fila (una lista de strings, del mismo largo que
+        # `columns`) o `None` si esa fila no sigue el formato de tabla
+        # (un GRSubMenu comun, o una tupla (nombre, funcion) de toda la
+        # vida) -- esas se dibujan mas abajo como una linea normal.
+        rows_cells = []
+        for f in node.functions:
+            if isinstance(f, (list, tuple)) and f and isinstance(f[0], (list, tuple)):
+                cells = [str(c) for c in f[0]][:len(columns)]
+                cells += [""] * (len(columns) - len(cells))
+            else:
+                cells = None
+            rows_cells.append(cells)
+
+        col_widths = [len(str(h)) for h in columns]
+        for cells in rows_cells:
+            if cells is None:
+                continue
+            for j, c in enumerate(cells):
+                col_widths[j] = max(col_widths[j], len(c))
+
+        sep = " │ "
+        header_line = sep.join(pad(str(h), col_widths[j], align[j]) for j, h in enumerate(columns))
+
+        def row_line(i, cells):
+            if cells is None:
+                return self._name(node.functions[i])
+            return sep.join(pad(c, col_widths[j], align[j]) for j, c in enumerate(cells))
+
+        title = getattr(node, "title", "")
+        box_border = self.BORDERS().get(str(style))
+        bc, oc, fc, tc, dc = self.SetStyle.border, self.SetStyle.options, self.SetStyle.focus, self.SetStyle.title, self.SetStyle.description
+        searching = getattr(node, "search_active", False)
+        query = getattr(node, "search_query", "") if searching else ""
+        search_row = f"Buscar: {query}_" if searching else ""
+        marked = [i for n, i in self._marked if n is node]
+
+        # +8 = mismo margen que GRmenu._render_option_panel (espacio
+        # para el cursor "> "/"[x] " de la fila mas ancha posible). Las
+        # filas que caen fuera del formato de tabla (rows_cells[i] es
+        # None) tambien entran en la cuenta, para que una fila asi mas
+        # larga que cualquier columna no se salga del recuadro.
+        plain_lengths = [len(self._name(node.functions[i])) + 8 for i, c in enumerate(rows_cells) if c is None]
+        width = max(
+            [size_max, len(header_line) + 8] + plain_lengths
+            + ([len(title) + 4] if title else [])
+            + ([len(search_row) + 4] if search_row else [])
+        )
+
+        filtered = self._filtered_indices(node)
+        limit = getattr(node, "max_show_options", None)
+        total = len(filtered)
+        truncated = bool(limit) and limit < total
+        window = filtered[node.scroll:node.scroll + limit] if truncated else filtered
+        visible = [(i, row_line(i, rows_cells[i])) for i in window]
+
+        lines = []
+        targets = []
+        if box_border:
+            b = box_border
+            line = self._hline(b["h"], width - 2)
+            v_left = self._colorize_anim(b["v"], bc)
+            v_right = self._colorize_anim(b["v"], bc, col=width - 1)
+            lines.append(self._colorize_anim(b["tl"] + line + b["tr"], bc, row=len(lines)))
+            targets.append(None)
+            if title:
+                lines.append(f"{v_left} {self._colorize_anim(title.center(width - 4), tc, row=len(lines))} {v_right}")
+                targets.append(None)
+                lines.append(self._colorize_anim(b["v"] + line + b["v"], bc, row=len(lines)))
+                targets.append(None)
+            if searching:
+                lines.append(f"{v_left} {self._colorize(search_row.ljust(width - 4), dc)} {v_right}")
+                targets.append(None)
+                lines.append(self._colorize_anim(b["v"] + line + b["v"], bc, row=len(lines)))
+                targets.append(None)
+            lines.append(f"{v_left} {self._colorize(header_line.ljust(width - 4), tc)} {v_right}")
+            targets.append(None)
+            lines.append(self._colorize_anim(b["v"] + line + b["v"], bc, row=len(lines)))
+            targets.append(None)
+            if not visible:
+                lines.append(f"{v_left} {self._colorize('(sin coincidencias)'.ljust(width - 4), oc)} {v_right}")
+                targets.append(None)
+            for i, text in visible:
+                if i in marked:
+                    color = (fc if focused else oc) if node.index == i else oc
+                    option = self._colorize(f"[x] {text.ljust(width - 8)}", color)
+                    lines.append(f"{v_left} {option} {v_right}")
+                elif node.index == i:
+                    option = self._colorize(f">{text.ljust(width - 6)}", fc if focused else oc)
+                    lines.append(f"{v_left}  {option} {v_right}")
+                else:
+                    option = self._colorize(f"> {text.ljust(width - 6)}", oc)
+                    lines.append(f"{v_left} {option} {v_right}")
+                targets.append(i)
+            lines.append(self._colorize_anim(b["bl"] + line + b["br"], bc, row=len(lines)))
+            targets.append(None)
+        else:
+            symbol = "#"
+            border = self._colorize(symbol, bc)
+            lines.append(self._colorize(symbol * width, bc))
+            targets.append(None)
+            if title:
+                lines.append(f"{border} {self._colorize(title.center(width - 4), tc)} {border}")
+                targets.append(None)
+                lines.append(self._colorize(symbol * width, bc))
+                targets.append(None)
+            if searching:
+                lines.append(f"{border} {self._colorize(search_row.ljust(width - 4), dc)} {border}")
+                targets.append(None)
+                lines.append(self._colorize(symbol * width, bc))
+                targets.append(None)
+            lines.append(f"{border} {self._colorize(header_line.ljust(width - 4), tc)} {border}")
+            targets.append(None)
+            lines.append(self._colorize(symbol * width, bc))
+            targets.append(None)
+            if not visible:
+                lines.append(f"{border} {self._colorize('(sin coincidencias)'.ljust(width - 4), oc)} {border}")
+                targets.append(None)
+            for i, text in visible:
+                color = (fc if focused else oc) if node.index == i else oc
+                content = f"[x] {text}" if i in marked else text
+                lines.append(f"{border} {self._colorize(content.ljust(width - 4), color)} {border}")
+                targets.append(i)
+            lines.append(self._colorize(symbol * width, bc))
+            targets.append(None)
+
+        if truncated:
+            pos = filtered.index(node.index) + 1 if node.index in filtered else 0
+            lines.append(self._colorize(f"{pos} de {total}".rjust(width), dc))
+            targets.append(None)
+
+        if marked:
+            plural = "s" if len(marked) != 1 else ""
+            lines.append(self._colorize(f"{len(marked)} marcada{plural}".rjust(width), dc))
+            targets.append(None)
+
+        desc = self._description(node.functions[node.index])
+        if desc:
+            lines.append(self._colorize(desc.rjust(width), dc))
+            targets.append(None)
+        return width, lines, targets
+
+
+class GRtable(GRmenu):
+    """Menu en forma de GRILLA: las opciones se acomodan en filas y
+    columnas, y se elige moviendose en las 4 direcciones -- arriba/abajo
+    cambia de fila (misma columna), izquierda/derecha cambia de columna
+    (misma fila) -- en vez de solo arriba/abajo como en `GRmenu`.
+
+    Es distinta de `GRDataTable` (una fila = un item, con una unica
+    funcion por fila; las columnas ahi son solo datos de ESE item) y de
+    un `GRmenu` comun (donde izquierda/derecha entran/salen de un
+    `GRSubMenu`): aca CADA CELDA es su propia opcion independiente, con
+    su propia funcion -- pensada para una tabla de ACCIONES por fila,
+    por ejemplo filas = usuarios y columnas = ["Ver", "Editar",
+    "Borrar"], donde cada combinacion (fila, columna) hace algo
+    distinto.
+
+    `grid` es una lista de filas; cada fila es una lista de celdas, y
+    cada celda es:
+
+        None                        -- hueco, no seleccionable
+        (nombre, funcion)           -- opcion normal
+        (nombre, funcion, descripcion)
+
+    Filas mas cortas que la mas larga se completan con `None` a la
+    derecha. `columns` (opcional) dibuja un encabezado arriba de la
+    grilla, uno por columna.
+
+    Por ser un panel plano (sin `GRSubMenu`, sin busqueda ni marcado --
+    las 4 flechas ya estan ocupadas moviendo el cursor) reimplementa su
+    propio loop de dibujado (`_draw_loop`) en vez de heredar el de
+    `GRmenu`; banner, subtitulo, titulo, estilo, animate, mouse y el
+    arranque/cierre de la terminal en modo raw (`draw`, heredado sin
+    cambios) funcionan igual que en cualquier `GRmenu`.
+
+    Ejemplo:
+
+        grilla = GRtable(
+            [
+                [("Ver", ver_ana), ("Editar", editar_ana), ("Borrar", borrar_ana)],
+                [("Ver", ver_luz), ("Editar", editar_luz), None],
+            ],
+            columns=["Ver", "Editar", "Borrar"],
+            title="Usuarios",
+        )
+        grilla.draw()
+    """
+
+    def __init__(self, grid, columns=None, col_align=None, max_show_rows=None, **kwargs):
+        """
+        Args:
+            grid: Lista de filas; cada fila es una lista de celdas (ver
+                la clase). Las filas mas cortas se completan con `None`.
+            columns: Encabezado opcional, un nombre por columna.
+            col_align: Alineacion por columna: "l" (izquierda, por
+                defecto), "r" (derecha, comoda para numeros) o "c"
+                (centrado). `None` (por defecto) alinea todo a la
+                izquierda.
+            max_show_rows: Maximo de filas visibles a la vez; con mas
+                filas que esto, la grilla scrollea verticalmente en vez
+                de crecer. `None` (por defecto) = sin limite.
+            **kwargs: Resto de los argumentos de `GRmenu.__init__`
+                (title, style, banner, subtitle, font, divider, center,
+                animate...). `searchable`/`max_show_options` de `GRmenu`
+                no aplican aca (una grilla no tiene busqueda ni ese
+                limite de opciones) y se ignoran si se pasan.
+        """
+        ncols = max([len(row) for row in grid], default=0)
+        if columns:
+            ncols = max(ncols, len(columns))
+        if col_align is not None and columns is not None and len(col_align) != len(columns):
+            raise ValueError("col_align debe tener la misma cantidad de elementos que columns")
+
+        self.grid = [list(row) + [None] * (ncols - len(row)) for row in grid]
+        self.columns = list(columns) if columns else None
+        self.col_align = list(col_align) if col_align else ["l"] * ncols
+        self.max_show_rows = max_show_rows
+        self.row = 0
+        self.col = 0
+
+        kwargs.pop("searchable", None)
+        kwargs.pop("max_show_options", None)
+        super().__init__(functions=[], **kwargs)
+        self._goto_nearest_cell()
+
+    def _goto_nearest_cell(self) -> None:
+        """Ubica (self.row, self.col) en la primera celda no vacia,
+        recorriendo la grilla desde (0, 0). Se llama al crear la
+        grilla, por si la celda (0, 0) arranca vacia (`None`)."""
+        for r, row in enumerate(self.grid):
+            for c, cell in enumerate(row):
+                if cell is not None:
+                    self.row, self.col = r, c
+                    return
+
+    def _move(self, d_row, d_col) -> None:
+        """Mueve el cursor UNA celda en la direccion (d_row, d_col),
+        saltando huecos (`None`) y dando la vuelta en el borde (wrap),
+        sin salirse nunca de la fila/columna de arranque: arriba/abajo
+        se quedan en la misma columna, izquierda/derecha en la misma
+        fila -- es lo que hace que las 4 flechas se sientan como
+        moverse en una grilla de verdad, no como bajar/subir una lista.
+        Si toda la fila/columna esta vacia, no mueve nada."""
+        if not self.grid or not self.grid[0]:
+            return
+        if d_row:
+            nrows = len(self.grid)
+            r = self.row
+            for _ in range(nrows):
+                r = (r + d_row) % nrows
+                if self.grid[r][self.col] is not None:
+                    self.row = r
+                    return
+        else:
+            row = self.grid[self.row]
+            ncols = len(row)
+            c = self.col
+            for _ in range(ncols):
+                c = (c + d_col) % ncols
+                if row[c] is not None:
+                    self.col = c
+                    return
+
+    def _clamp_row_scroll(self) -> None:
+        """Como `GRmenu._clamp_scroll`, pero en filas de `self.grid` en
+        vez de indices de `node.functions` (una grilla no filtra por
+        busqueda, asi que no hace falta la lista `filtered`)."""
+        limit = self.max_show_rows
+        total = len(self.grid)
+        if not limit or limit >= total:
+            self.scroll = 0
+            return
+        if self.row < self.scroll:
+            self.scroll = self.row
+        elif self.row >= self.scroll + limit:
+            self.scroll = self.row - limit + 1
+        self.scroll = max(0, min(self.scroll, total - limit))
+
+    def _col_widths(self) -> list:
+        ncols = len(self.grid[0]) if self.grid else (len(self.columns) if self.columns else 0)
+        widths = [len(str(self.columns[j])) if self.columns else 0 for j in range(ncols)]
+        for row in self.grid:
+            for j, cell in enumerate(row):
+                if cell is not None:
+                    widths[j] = max(widths[j], len(self._name(cell)))
+        return widths
+
+    def _estimate_size(self) -> tuple:
+        """Como `GRmenu._estimate_size`, pero a partir de `self.grid` +
+        `self.columns` en vez de `self.functions` (usada por
+        `_ensure_terminal_size`, ver `GRmenu.__init__`)."""
+        col_w = self._col_widths()
+        content_w = sum(col_w) + 2 * max(0, len(col_w) - 1) if col_w else 0
+        width = max([20, content_w + 8] + ([len(self.title) + 4] if self.title else []))
+        n_visible = min(len(self.grid), self.max_show_rows or len(self.grid)) if self.grid else 0
+        height = 2 + (1 if self.title else 0) + (2 if self.columns else 0) + n_visible + 2
+
+        if self.banner:
+            rows = GRmenu.build_ascii_lines(self.banner, 999, GRmenu.SetStyle.font)
+            if rows:
+                width = max(width, max(len(r) for r in rows) + 6)
+                height += len(rows) + 3
+            else:
+                width = max(width, len(self.banner.strip()) + 6)
+                height += 3
+
+        if self.subtitle:
+            sub_lines = self.subtitle.splitlines()
+            width = max(width, max(len(ln) for ln in sub_lines) + 2)
+            height += len(sub_lines) + (2 if self.divider else 0) + 1
+
+        return width + 2, height + 2
+
+    def _render_grid(self, style, size_max):
+        """Arma las lineas (ya coloreadas) del panel de la grilla,
+        igual que `_render_option_panel` en `GRmenu`, pero con celdas
+        en 2 dimensiones en vez de una opcion por linea.
+
+        Devuelve `(width, lines, cell_regions)`: `cell_regions` es una
+        lista de `(indice_de_linea, col_inicio, col_fin, fila, col)`
+        -- posiciones RELATIVAS a este panel (no a la terminal
+        completa) de cada celda seleccionable, para que `_draw_loop`
+        arme el hit-test de mouse una vez que sabe donde termina el
+        banner/subtitulo y donde empieza el panel."""
+        col_w = self._col_widths()
+        ncols = len(col_w)
+        bc, oc, fc, tc, dc = self.SetStyle.border, self.SetStyle.options, self.SetStyle.focus, self.SetStyle.title, self.SetStyle.description
+        box_border = self.BORDERS().get(str(style))
+
+        def pad(text, w, a):
+            if a == "r":
+                return text.rjust(w)
+            if a == "c":
+                return text.center(w)
+            return text.ljust(w)
+
+        sep = "  "
+        col_starts = []
+        pos = 0
+        for w in col_w:
+            col_starts.append(pos)
+            pos += w + len(sep)
+        content_w = max(0, pos - len(sep))
+
+        width = max([size_max, content_w + 8] + ([len(self.title) + 4] if self.title else []))
+
+        limit = self.max_show_rows
+        total = len(self.grid)
+        truncated = bool(limit) and limit < total
+        self._clamp_row_scroll()
+        window = range(self.scroll, min(self.scroll + limit, total)) if truncated else range(total)
+
+        def row_line(r):
+            # Cada celda se colorea POR SEPARADO (la resaltada necesita
+            # un color distinto de las demas), a diferencia de una
+            # linea de un solo color como el titulo/encabezado -- por
+            # eso `visible_len` se lleva a mano en vez de usar
+            # `.ljust()` sobre el resultado ya coloreado: los codigos
+            # ANSI de color cuentan como caracteres para Python, asi
+            # que un `.ljust()` posterior (en `add_row`) veria la
+            # cadena "mas larga" de lo que en realidad se ve en
+            # pantalla y no agregaria el relleno que falta de verdad.
+            row = self.grid[r]
+            pieces = []
+            regions = []
+            visible_len = 0
+            for j, cell in enumerate(row):
+                text = pad("" if cell is None else self._name(cell), col_w[j], self.col_align[j])
+                if j > 0:
+                    visible_len += len(sep)
+                visible_len += len(text)
+                if cell is None:
+                    pieces.append(text)
+                    continue
+                selected = (r == self.row and j == self.col)
+                pieces.append(self._colorize(text, fc if selected else oc))
+                regions.append((col_starts[j], col_starts[j] + col_w[j], r, j))
+            return sep.join(pieces), visible_len, regions
+
+        header_line = None
+        if self.columns:
+            header_line = sep.join(pad(str(h), col_w[j], self.col_align[j]) for j, h in enumerate(self.columns))
+
+        lines = []
+        cell_regions = []
+
+        def add_row(r):
+            text, visible_len, regions = row_line(r)
+            fill = " " * max(0, (width - 4) - visible_len)
+            lines.append(f"{v_left} {text}{fill} {v_right}")
+            for c0, c1, gr, gc in regions:
+                cell_regions.append((len(lines) - 1, c0, c1, gr, gc))
+
+        if box_border:
+            b = box_border
+            line = self._hline(b["h"], width - 2)
+            v_left = self._colorize_anim(b["v"], bc)
+            v_right = self._colorize_anim(b["v"], bc, col=width - 1)
+            lines.append(self._colorize_anim(b["tl"] + line + b["tr"], bc, row=0))
+            if self.title:
+                lines.append(f"{v_left} {self._colorize_anim(self.title.center(width - 4), tc, row=len(lines))} {v_right}")
+                lines.append(self._colorize_anim(b["v"] + line + b["v"], bc, row=len(lines)))
+            if header_line is not None:
+                lines.append(f"{v_left} {self._colorize(header_line.ljust(width - 4), tc)} {v_right}")
+                lines.append(self._colorize_anim(b["v"] + line + b["v"], bc, row=len(lines)))
+            if not ncols:
+                lines.append(f"{v_left} {self._colorize('(tabla vacia)'.ljust(width - 4), oc)} {v_right}")
+            for r in window:
+                add_row(r)
+            lines.append(self._colorize_anim(b["bl"] + line + b["br"], bc, row=len(lines)))
+        else:
+            symbol = "#"
+            border = self._colorize(symbol, bc)
+            v_left = v_right = border
+            lines.append(self._colorize(symbol * width, bc))
+            if self.title:
+                lines.append(f"{border} {self._colorize(self.title.center(width - 4), tc)} {border}")
+                lines.append(self._colorize(symbol * width, bc))
+            if header_line is not None:
+                lines.append(f"{border} {self._colorize(header_line.ljust(width - 4), tc)} {border}")
+                lines.append(self._colorize(symbol * width, bc))
+            if not ncols:
+                lines.append(f"{border} {self._colorize('(tabla vacia)'.ljust(width - 4), oc)} {border}")
+            for r in window:
+                add_row(r)
+            lines.append(self._colorize(symbol * width, bc))
+
+        if truncated:
+            lines.append(self._colorize(f"{self.row + 1} de {total}".rjust(width), dc))
+
+        current = self.grid[self.row][self.col] if self.grid and self.grid[self.row] else None
+        desc = self._description(current) if current is not None else ""
+        if desc:
+            lines.append(self._colorize(desc.rjust(width), dc))
+
+        return width, lines, cell_regions
+
+    def _draw_loop(self, size_max):
+        """Version simplificada del `_draw_loop` de `GRmenu`, sin
+        `GRSubMenu`/busqueda/marcado/preview (no tienen sentido en una
+        grilla plana): arriba/abajo/izquierda/derecha mueven el cursor
+        2D (`_move`), Enter ejecuta la celda resaltada, "q"/Ctrl+C
+        salen sin ejecutar nada. Reusa de `GRmenu` la lectura de teclas
+        (`_read_key`/`_read_key_or_tick`), el banner/subtitulo
+        (`_print_banner_subtitle`) y el hit-test de click/hover del
+        mouse (mismo patron que `GRmenu._draw_loop`, adaptado a
+        celdas 2D en vez de opciones lineales)."""
+        first_key = True
+        first_frame = True
+        while True:
+            key = self._read_key(self.D) if first_key else self._read_key_or_tick()
+            first_key = False
+
+            cell_regions = getattr(self, "_cell_regions", None)
+            if key == b'\x1b[CLICK' and self._last_click and cell_regions:
+                col, row = self._last_click
+                for r0, r1, c0, c1, gr, gc in cell_regions:
+                    if r0 <= row < r1 and c0 <= col < c1:
+                        self.row, self.col = gr, gc
+                        key = b'\r'
+                        break
+            elif key == b'\x1b[HOVER' and self._last_hover and cell_regions:
+                col, row = self._last_hover
+                changed = False
+                for r0, r1, c0, c1, gr, gc in cell_regions:
+                    if r0 <= row < r1 and c0 <= col < c1:
+                        if (gr, gc) != (self.row, self.col):
+                            self.row, self.col = gr, gc
+                            changed = True
+                        break
+                if not changed:
+                    continue
+
+            if key == b'\x03' or key == b'q':
+                break
+
+            if key == b'\x1b[A':
+                self._move(-1, 0)
+            elif key == b'\x1b[B':
+                self._move(1, 0)
+            elif key == b'\x1b[D':
+                self._move(0, -1)
+            elif key == b'\x1b[C':
+                self._move(0, 1)
+
+            if first_frame:
+                print(self._clear_seq, end="")
+                first_frame = False
+            else:
+                sys.stdout.write("\x1b[H")
+
+            cols = GRmenu._term_width()
+            width, lines, cell_regions_rel = self._render_grid(self.style, size_max)
+            printed_rows, ref = self._print_banner_subtitle(cols, width)
+            outer_pad = " " * ((ref - width) // 2) if self.center and ref > width else ""
+            panel_col = len(outer_pad) + 1
+
+            for line in lines:
+                print(outer_pad + line)
+
+            self._cell_regions = [
+                (printed_rows + line_i + 1, printed_rows + line_i + 2, panel_col + 2 + c0, panel_col + 2 + c1, gr, gc)
+                for line_i, c0, c1, gr, gc in cell_regions_rel
+            ]
+
+            sys.stdout.write("\x1b[J")
+            sys.stdout.flush()
+
+            if key == b'\r':
+                current = self.grid[self.row][self.col] if self.grid and self.grid[self.row] else None
+                if current is not None:
+                    if not sys.platform == "win32":
+                        termios.tcsetattr(self.D, termios.TCSAFLUSH, self.DF)
+                        sys.stdout.write("\x1b[?1003l\x1b[?1000l")
+                    sys.stdout.write("\x1b[?25h")
+                    sys.stdout.flush()
+                    print(self._clear_seq)
+                    self._call(current)
+                    break
 
 
 if __name__ == "__main__":
